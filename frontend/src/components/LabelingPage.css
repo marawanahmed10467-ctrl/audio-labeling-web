@@ -1,0 +1,287 @@
+
+.labeling-panel {
+  max-width: 800px;
+  margin: 0 auto;
+  padding: 20px;
+}
+
+.labeling-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 30px;
+  padding-bottom: 20px;
+  border-bottom: 2px solid #e0e0e0;
+}
+
+.labeling-header h2 {
+  margin: 0;
+  color: #333;
+}
+
+.labeling-stats {
+  font-weight: bold;
+  color: #666;
+}
+
+.audio-player {
+  margin-bottom: 30px;
+}
+
+.audio-player h3 {
+  margin-bottom: 15px;
+  color: #333;
+}
+
+.audio-element {
+  width: 100%;
+  margin-bottom: 10px;
+}
+
+.audio-error {
+  color: #d32f2f;
+  background: #ffebee;
+  padding: 10px;
+  border-radius: 4px;
+  margin-bottom: 15px;
+  border: 1px solid #f44336;
+}
+
+/* Progress Indicator */
+.labeling-progress {
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 40px;
+  position: relative;
+}
+
+.labeling-progress::before {
+  content: '';
+  position: absolute;
+  top: 20px;
+  left: 10%;
+  right: 10%;
+  height: 2px;
+  background: #e0e0e0;
+  z-index: 1;
+}
+
+.progress-step {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  position: relative;
+  z-index: 2;
+}
+
+.progress-step span {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  background: #e0e0e0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: bold;
+  margin-bottom: 8px;
+  border: 3px solid white;
+}
+
+.progress-step.active span {
+  background: #2196f3;
+  color: white;
+  box-shadow: 0 0 0 3px #bbdefb;
+}
+
+.progress-step.completed span {
+  background: #4caf50;
+  color: white;
+}
+
+.progress-step p {
+  margin: 0;
+  font-size: 14px;
+  color: #666;
+  font-weight: 500;
+}
+
+.progress-step.active p {
+  color: #2196f3;
+  font-weight: bold;
+}
+
+/* Labeling Steps */
+.labeling-step {
+  background: white;
+  padding: 30px;
+  border-radius: 12px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+  margin-bottom: 20px;
+}
+
+.labeling-step h3 {
+  margin-top: 0;
+  margin-bottom: 25px;
+  color: #333;
+  text-align: center;
+  font-size: 1.5em;
+}
+
+/* Shortcut Grid */
+.shortcut-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 15px;
+  margin-bottom: 25px;
+}
+
+.shortcut-item {
+  display: flex;
+  align-items: center;
+  padding: 15px;
+  background: #f8f9fa;
+  border-radius: 8px;
+  border: 2px solid transparent;
+  transition: all 0.2s ease;
+}
+
+.shortcut-item:hover {
+  border-color: #2196f3;
+  background: #e3f2fd;
+}
+
+.shortcut-item kbd {
+  background: #333;
+  color: white;
+  padding: 8px 12px;
+  border-radius: 6px;
+  font-weight: bold;
+  margin-right: 15px;
+  min-width: 50px;
+  text-align: center;
+}
+
+.shortcut-item.confirm kbd {
+  background: #4caf50;
+}
+
+.shortcut-item.restart kbd {
+  background: #ff9800;
+}
+
+/* Selected Type Display */
+.selected-type {
+  text-align: center;
+  margin-bottom: 25px;
+  padding: 15px;
+  background: #e8f5e8;
+  border-radius: 8px;
+  border: 1px solid #4caf50;
+  color: #2e7d32;
+  font-size: 1.1em;
+}
+
+/* Confirmation Step */
+.confirm-step {
+  text-align: center;
+}
+
+.label-summary {
+  background: #f8f9fa;
+  padding: 25px;
+  border-radius: 8px;
+  margin-bottom: 30px;
+  border: 2px solid #e0e0e0;
+}
+
+.label-item {
+  font-size: 1.2em;
+  margin-bottom: 15px;
+  padding: 10px;
+}
+
+.label-item:last-child {
+  margin-bottom: 0;
+}
+
+.confirmation-actions {
+  margin: 30px 0;
+}
+
+/* Instructions */
+.step-instructions {
+  text-align: center;
+  color: #666;
+  font-style: italic;
+  margin-top: 20px;
+}
+
+.global-instructions {
+  text-align: center;
+  padding: 15px;
+  background: #fff3e0;
+  border-radius: 8px;
+  margin-top: 20px;
+  border: 1px solid #ffb74d;
+}
+
+.global-instructions kbd {
+  background: #ff9800;
+  color: white;
+  padding: 4px 8px;
+  border-radius: 4px;
+  font-weight: bold;
+}
+
+/* No Audio State */
+.no-audio {
+  text-align: center;
+  padding: 60px 20px;
+}
+
+.no-audio h3 {
+  color: #666;
+  margin-bottom: 15px;
+}
+
+.retry-btn {
+  background: #2196f3;
+  color: white;
+  border: none;
+  padding: 12px 24px;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 16px;
+  margin: 10px;
+}
+
+.retry-btn:hover {
+  background: #1976d2;
+}
+
+/* Loading State */
+.loading {
+  text-align: center;
+  padding: 60px 20px;
+  font-size: 1.2em;
+  color: #666;
+}
+
+/* Logout button styling */
+.logout-btn {
+  background: #f44336;
+  color: white;
+  border: none;
+  padding: 8px 16px;
+  border-radius: 4px;
+  cursor: pointer;
+  margin-left: 15px;
+  position: fixed;
+  top: 20px;
+  right: 20px;
+  z-index: 1000;
+}
+
+.logout-btn:hover {
+  background: #d32f2f;
+}

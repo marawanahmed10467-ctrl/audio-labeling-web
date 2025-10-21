@@ -1,0 +1,28 @@
+{
+  "name": "audio-labeling-backend",
+  "version": "1.0.0",
+  "description": "Backend for audio labeling tool",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "nodemon server.js",
+    "client": "cd frontend && npm start",
+    "client-install": "cd frontend && npm install"
+  },
+  "dependencies": {
+    "express": "^4.18.2",
+    "bcryptjs": "^2.4.3",
+    "jsonwebtoken": "^9.0.2",
+    "cors": "^2.8.5",
+    "dotenv": "^16.3.1",
+    "multer": "^1.4.5-lts.1",
+    "@aws-sdk/client-dynamodb": "^3.398.0",
+    "@aws-sdk/lib-dynamodb": "^3.398.0",
+    "aws-sdk": "^2.1435.0",
+    "@aws-sdk/client-s3": "^3.398.0",
+    "@aws-sdk/s3-request-presigner": "^3.398.0"
+  },
+  "devDependencies": {
+    "nodemon": "^3.0.1"
+  }
+}
