@@ -1,0 +1,41 @@
+services:
+  backend:
+    build: ./backend
+    restart: always
+    ports:
+      - "5000:5000"
+    environment:
+      # AWS Configuration
+      AWS_REGION: ${AWS_REGION:-us-east-1}
+      AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID}
+      AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY}
+      DYNAMODB_TABLE: ${DYNAMODB_TABLE}
+      
+      # Authentication Configuration
+      ADMIN_EMAIL: ${ADMIN_EMAIL}
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD}
+      JWT_SECRET: ${JWT_SECRET}
+      S3_BUCKET_NAME: ${S3_BUCKET_NAME}
+      S3_REGION: ${S3_REGION}
+      
+      # Database tables
+      USERS_TABLE: ${USERS_TABLE}
+      LABELS_TABLE: ${LABELS_TABLE}
+    networks:
+      - app-network
+   
+  frontend:
+    build: ./frontend
+    restart: unless-stopped
+    ports:
+      - "80:3000"  
+    environment:
+      REACT_APP_API_URL: ${REACT_APP_API_URL}  
+    depends_on:
+      - backend
+    networks:
+      - app-network
+
+networks:
+  app-network:
+    driver: bridge
