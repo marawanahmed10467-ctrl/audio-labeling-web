@@ -13,7 +13,7 @@ function createS3Client() {
 }
 
 async function uploadFile(file) {
-  const s3Client = createS3Client(); // ✅ created only when needed
+  const s3Client = createS3Client(); 
   const params = {
     Bucket: process.env.S3_BUCKET_NAME,
     Key: `${Date.now()}_${file.originalname}`,
@@ -26,7 +26,7 @@ async function uploadFile(file) {
 }
 
 async function getPresignedUrl(fileKey) {
-  const s3Client = createS3Client(); // ✅ created only when needed
+  const s3Client = createS3Client(); 
   const command = new GetObjectCommand({
     Bucket: process.env.S3_BUCKET_NAME,
     Key: fileKey,

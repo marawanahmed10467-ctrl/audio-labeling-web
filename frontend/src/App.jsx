@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import LoginPage from "./components/LoginPage";
 import LabelingPanel from "./components/LabelingPage";
-import AdminPanel from "./components/AdminPage"; // ← ADD THIS IMPORT
+import AdminPanel from "./components/AdminPage"; 
 
 function App() {
   const [user, setUser] = useState(null);

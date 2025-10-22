@@ -5,7 +5,7 @@ const router = express.Router();
 
 // Public routes
 router.post('/login', login);
-router.post('/register', register); // Optional: if you want user registration
+router.post('/register', register); // Optional
 
 
 module.exports = router;

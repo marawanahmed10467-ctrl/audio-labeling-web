@@ -10,7 +10,7 @@ const router = express.Router();
 const upload = multer({
   storage: multer.memoryStorage(),
   limits: {
-    fileSize: 10 * 1024 * 1024, // 10MB limit
+    fileSize: 10 * 1024 * 1024, 
   },
   fileFilter: (req, file, cb) => {
     if (file.mimetype.startsWith('audio/')) {
@@ -58,8 +58,8 @@ router.post('/upload-audio', upload.array('audio', 10000), async (req, res) => {
         status: "unlabeled",
         label_count: 0,
         label_map: [],
-        priority: priority, // 🆕 Add priority
-        last_labeled_at: null, // 🆕 Track when it was last labeled
+        priority: priority, 
+        last_labeled_at: null, 
         created_at: Date.now(),
       };
 
@@ -117,7 +117,6 @@ router.get('/label-items', async (req, res) => {
       return res.json({ items: [] });
     }
 
-    // 🆕 1. PRIORITY-BASED SORTING: high → medium → low
     const priorityOrder = { 'high': 1, 'medium': 2, 'low': 3 };
     
     items.sort((a, b) => {
@@ -140,7 +139,7 @@ router.get('/label-items', async (req, res) => {
       return Math.random() - 0.5;
     });
 
-    // 🆕 2. BETTER DISTRIBUTION: Avoid showing same audio repeatedly
+    // Avoid showing same audio repeatedly
     // Group by priority and apply distribution logic
     const priorityGroups = {
       high: items.filter(item => (item.priority || 'medium') === 'high'),
@@ -153,7 +152,7 @@ router.get('/label-items', async (req, res) => {
     // Select the best candidate based on priority and distribution
     let selectedItem = null;
 
-    // Strategy: Always try to select from highest available priority
+    // Always try to select from highest available priority
     if (priorityGroups.high.length > 0) {
       selectedItem = selectBestCandidate(priorityGroups.high, minGapBetweenSameAudio);
     } else if (priorityGroups.medium.length > 0) {
@@ -189,7 +188,7 @@ router.get('/label-items', async (req, res) => {
   }
 });
 
-// 🆕 Helper function for better audio distribution
+// Helper function for better audio distribution
 function selectBestCandidate(items, minGap) {
   if (items.length === 0) return null;
   
