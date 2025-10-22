@@ -7,12 +7,11 @@ const LabelingPanel = ({ user, onLogout }) => {
   const [loading, setLoading] = useState(false);
   const [labelCount, setLabelCount] = useState(0);
   const [audioError, setAudioError] = useState(null);
-  const [currentStep, setCurrentStep] = useState('type'); // type → severity → confirm
+  const [currentStep, setCurrentStep] = useState('type'); 
   const [selectedType, setSelectedType] = useState(null);
   const [selectedSeverity, setSelectedSeverity] = useState(null);
   const audioRef = useRef(null);
 
-  // Simplified maps with only lowercase keys
   const typeMap = {
     "w": "wet",
     "d": "dry", 

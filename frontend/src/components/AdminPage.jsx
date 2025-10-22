@@ -1,10 +1,10 @@
 import React, { useState } from 'react';
 import api from '../api/axios';
 import './AdminPage.css';
-import LabelingPanel from './LabelingPage'; // Make sure this import path is correct
+import LabelingPanel from './LabelingPage'; 
 
 const AdminPanel = ({ user, onLogout }) => {
-  const [activeTab, setActiveTab] = useState('management'); // 'management' or 'labeling'
+  const [activeTab, setActiveTab] = useState('management'); 
 
   return (
     <div className="admin-panel">

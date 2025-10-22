@@ -71,7 +71,7 @@ exports.createLabeler = async (req, res) => {
 // Get all labelers for admin management
 exports.getLabelers = async (req, res) => {
   try {
-    // Note: This is a simplified approach. In production, you might want to use GSI for role-based queries
+    // Note: This is a simplified approach. In production, we might want to use GSI for role-based queries
     const result = await docClient.send(new ScanCommand({
       TableName: usersTable,
       FilterExpression: "role = :role",
