@@ -1,10 +1,12 @@
 const express = require('express');
 const multer = require('multer');
-const { PutCommand, ScanCommand, UpdateCommand } = require('@aws-sdk/lib-dynamodb');
+const { PutCommand, ScanCommand, UpdateCommand, QueryCommand} = require('@aws-sdk/lib-dynamodb');
 const { docClient } = require('../utils/dynamodb');
 const { getPresignedUrl } = require('../utils/s3');
 const { uploadFile } = require('../utils/s3'); 
 const { createLabeler, getLabelers } = require('../controllers/adminController');
+const { updateAudioMetrics,copyToLabeledItems } = require('../utils/labelsHandlers'); 
+//const { updateUserActivity, trackLabelSubmission, getActiveUsers } = require('../controllers/userController');
 
 const router = express.Router();
 const upload = multer({
@@ -21,6 +23,10 @@ const upload = multer({
   }
 });
 
+const TARGET_LABELS = 3;
+const RESERVATION_TIMEOUT = 120000; // 2 minutes
+const activeUsers = new Map(); // userEmail -> lastActivity
+
 // Labeler Management Routes
 router.post('/create-labeler', createLabeler);
 router.get('/labelers', getLabelers);
@@ -35,32 +41,71 @@ router.post('/upload-audio', upload.array('audio', 10000), async (req, res) => {
       });
     }
 
-    const { priority = 'medium' } = req.body; // 'high', 'medium', 'low'
+    const { priority: explicitPriority } = req.body;
     const uploaded = [];
 
     for (const file of req.files) {
       if (!file.mimetype.startsWith('audio/')) {
         continue;
       }
+      function detectPriorityFromPath(objectKey) {
+        const pathParts = objectKey.split('/');
+        console.log(`🔍 Analyzing path: ${objectKey}`);
+        console.log(`📁 Path parts:`, pathParts);
 
-      // Upload to S3 with priority folder
-      const folder = `audio/${priority}`;
-      const key = `${folder}/${Date.now()}-${file.originalname}`;
-      await uploadFile(file, key); // Modify your uploadFile to accept custom key
+        // Look for priority in the first level of folders
+        // Since bucket root has high/, medium/, low/ directly
+        if (pathParts.length > 0) {
+          const firstFolder = pathParts[0].toLowerCase();
+          console.log(`🎯 Checking first folder: ${firstFolder}`);
+          
+          if (['high', 'medium', 'low'].includes(firstFolder)) {
+            console.log(`✅ Detected priority: ${firstFolder}`);
+            return firstFolder;
+          }
+        }
 
-      // Register in DynamoDB with priority
+        // Fallback: check any folder level for priority
+        for (let i = 0; i < pathParts.length - 1; i++) {
+          const folder = pathParts[i].toLowerCase();
+          if (['high', 'medium', 'low'].includes(folder)) {
+            console.log(`✅ Detected priority in nested folder: ${folder}`);
+            return folder;
+          }
+        }
+
+        // Default to 'high' if no priority folder found anywhere
+        console.log(`⚡ No priority folder found, defaulting to 'high'`);
+        return 'high';
+      }
+
+      const detectedPriority = detectPriorityFromPath(file.originalname);
+      const finalPriority = explicitPriority || detectedPriority;
+      
+      // Clean filename (remove folder paths)
+      const fileName = file.originalname.split('/').pop();
+      const folder = `${finalPriority}`;
+      const key = `${folder}/${Date.now()}-${fileName}`;
+
+      console.log(`📁 File: ${file.originalname} → Priority: ${finalPriority}, Key: ${key}`);
+      await uploadFile(file, key);
+
+      // Register in DynamoDB with consistent schema
       const audioItem = {
         id: `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+        created_at: Date.now(),
         s3_key: key,
-        original_name: file.originalname,
+        original_name: fileName,
         file_size: file.size,
         mime_type: file.mimetype,
-        status: "unlabeled",
+        priority: finalPriority,
         label_count: 0,
+        target_labels: 3,
         label_map: [],
-        priority: priority, 
-        last_labeled_at: null, 
-        created_at: Date.now(),
+        label_confidence: 0,
+        labeling_history: [],
+        average_labeling_time: 0,
+        last_labeled_at: null
       };
 
       await docClient.send(new PutCommand({
@@ -70,16 +115,15 @@ router.post('/upload-audio', upload.array('audio', 10000), async (req, res) => {
 
       uploaded.push({
         id: audioItem.id,
-        original_name: file.originalname,
+        original_name: fileName,
         key: key,
-        status: "unlabeled",
-        priority: priority
+        priority: finalPriority
       });
     }
 
     res.json({
       success: true,
-      message: `${uploaded.length} audio file(s) uploaded to ${priority} priority`,
+      message: `${uploaded.length} audio file(s) uploaded`,
       files: uploaded
     });
 
@@ -93,160 +137,349 @@ router.post('/upload-audio', upload.array('audio', 10000), async (req, res) => {
   }
 });
 
-// Get audio items for labeling with priority and distribution
-router.get('/label-items', async (req, res) => {
-  try {
-    const threshold = 3;
-    const cooldownPeriod = 10 * 60 * 1000; // 10 minutes cooldown
-    const minGapBetweenSameAudio = 10; // Show same audio after 10 other labels
-    
-    const params = {
-      TableName: process.env.LABELS_TABLE,
-      FilterExpression: "attribute_not_exists(label_count) OR label_count < :t",
-      ExpressionAttributeValues: {
-        ":t": threshold,
-      },
-    };
-
-    const result = await docClient.send(new ScanCommand(params));
-    let items = result.Items || [];
-
-    console.log(`📊 Found ${items.length} items needing labeling`);
-
-    if (items.length === 0) {
-      return res.json({ items: [] });
+// Update on every request
+async function updateUserActivity(userEmail) {
+  activeUsers.set(userEmail, Date.now());
+  
+  // Cleanup inactive users (e.g., >5 minutes)
+  const now = Date.now();
+  for (const [email, lastActive] of activeUsers.entries()) {
+    if (now - lastActive > 5 * 60 * 1000) {
+      activeUsers.delete(email);
     }
-
-    const priorityOrder = { 'high': 1, 'medium': 2, 'low': 3 };
-    
-    items.sort((a, b) => {
-      const priorityA = priorityOrder[a.priority || 'medium'] || 2;
-      const priorityB = priorityOrder[b.priority || 'medium'] || 2;
-      
-      // First sort by priority (high first)
-      if (priorityA !== priorityB) {
-        return priorityA - priorityB;
-      }
-      
-      // Then by label count (less labeled first)
-      const countA = a.label_count || 0;
-      const countB = b.label_count || 0;
-      if (countA !== countB) {
-        return countA - countB;
-      }
-      
-      // Finally random shuffle for same priority & count
-      return Math.random() - 0.5;
-    });
-
-    // Avoid showing same audio repeatedly
-    // Group by priority and apply distribution logic
-    const priorityGroups = {
-      high: items.filter(item => (item.priority || 'medium') === 'high'),
-      medium: items.filter(item => (item.priority || 'medium') === 'medium'), 
-      low: items.filter(item => (item.priority || 'medium') === 'low')
-    };
-
-    console.log(`🎯 Priority distribution - High: ${priorityGroups.high.length}, Medium: ${priorityGroups.medium.length}, Low: ${priorityGroups.low.length}`);
-
-    // Select the best candidate based on priority and distribution
-    let selectedItem = null;
-
-    // Always try to select from highest available priority
-    if (priorityGroups.high.length > 0) {
-      selectedItem = selectBestCandidate(priorityGroups.high, minGapBetweenSameAudio);
-    } else if (priorityGroups.medium.length > 0) {
-      selectedItem = selectBestCandidate(priorityGroups.medium, minGapBetweenSameAudio);
-    } else if (priorityGroups.low.length > 0) {
-      selectedItem = selectBestCandidate(priorityGroups.low, minGapBetweenSameAudio);
-    }
-
-    if (!selectedItem) {
-      console.log('❌ No suitable audio found after distribution logic');
-      return res.json({ items: [] });
-    }
-
-    // Generate presigned URL for the selected item
-    const audio_url = await getPresignedUrl(selectedItem.s3_key);
-
-    const withUrls = [{
-      id: selectedItem.id,
-      audio_url: audio_url,
-      label_count: selectedItem.label_count || 0,
-      status: selectedItem.status || 'unlabeled',
-      priority: selectedItem.priority || 'medium',
-      filename: selectedItem.s3_key?.split('/').pop() || 'audio'
-    }];
-
-    console.log(`✅ SELECTED: ${selectedItem.id}, Priority: ${selectedItem.priority}, Labels: ${selectedItem.label_count || 0}, File: ${selectedItem.s3_key?.split('/').pop()}`);
-
-    res.json({ items: withUrls });
-
-  } catch (err) {
-    console.error("Error fetching items:", err);
-    res.status(500).json({ error: err.message });
   }
-});
-
-// Helper function for better audio distribution
-function selectBestCandidate(items, minGap) {
-  if (items.length === 0) return null;
-  
-  // Sort by label count (prefer less labeled)
-  items.sort((a, b) => (a.label_count || 0) - (b.label_count || 0));
-  
-  // Group by similar label counts
-  const groups = {};
-  items.forEach(item => {
-    const count = item.label_count || 0;
-    if (!groups[count]) groups[count] = [];
-    groups[count].push(item);
-  });
-  
-  // Select from the group with lowest label count
-  const lowestCount = Math.min(...Object.keys(groups).map(Number));
-  const candidateGroup = groups[lowestCount];
-  
-  // Randomly select from the candidate group to avoid patterns
-  const randomIndex = Math.floor(Math.random() * candidateGroup.length);
-  return candidateGroup[randomIndex];
 }
 
-// 🆕 Enhanced label submission with cooldown tracking
-router.post('/labeled-items', async (req, res) => {
-  const { id, label, type, severity } = req.body;
+function getActiveUserCount() {
+  return activeUsers.size;
+}
 
+function calculateDynamicLimit(activeUserCount) {
+  const BASE_LIMIT = 10;
+  const BUFFER_PER_USER = 1;
+  const MAX_LIMIT = 100; 
+  
+  const calculated = BASE_LIMIT + (activeUserCount * BUFFER_PER_USER);
+  return Math.min(calculated, MAX_LIMIT);
+}
+
+
+
+async function findCandidatesByPriority(userEmail, limit) {
+
+  const priorities = ['high', 'medium', 'low'];
+  
+  for (const priority of priorities) {
+    const candidates = await getAvailableAudios(priority, userEmail, limit);
+    console.log(`I am trying to getAvailableAudios`);
+
+
+    
+    if (candidates.length > 0) {
+      console.log(`✅ Found ${candidates.length} ${priority} priority candidates`);
+      return { priority, candidates };
+    }
+  }
+  
+  return null;
+}
+// async function getAvailableAudios(priority, userEmail, limit = 15) {
+//   console.log(`🔍 Getting ${priority} priority audios - USING SCAN ONLY (index not available)`);
+  
+//   try {
+//     const scanParams = {
+//       TableName: process.env.LABELS_TABLE,
+//       FilterExpression: 
+//         'priority = :priority AND label_count < :target AND ' +
+//         '(attribute_not_exists(reserved_until) OR reserved_until < :now) AND ' +
+//         'attribute_not_exists(blacklisted_users)',
+//       ExpressionAttributeValues: {
+//         ':priority': priority,
+//         ':target': TARGET_LABELS,
+//         ':now': Date.now()
+//       }
+//     };
+    
+//     const result = await docClient.send(new ScanCommand(scanParams));
+//     console.log(` After scanning, ${result.Items} found let me filer them`);
+    
+//     // Manual filtering for blacklisted users (since FilterExpression can't handle complex array checks easily)
+//     const filteredItems = result.Items.filter(item => {
+//       // Skip if user is blacklisted
+//       if (item.blacklisted_users && item.blacklisted_users.includes(userEmail)) {
+//         return false;
+//       }
+//       return true;
+//     });
+    
+//     // Manual sorting (descending by label_count)
+//     const sortedItems = filteredItems.sort((a, b) => {
+//       const countA = a.label_count || 0;
+//       const countB = b.label_count || 0;
+//       return countB - countA; // Descending (2 → 1 → 0)
+//     });
+    
+//     console.log(`✅ SCAN successful: Found ${filteredItems.length} ${priority} priority audios (after filtering)`);
+//     return sortedItems.slice(0, limit);
+    
+//   } catch (scanError) {
+//     console.error(`❌ SCAN failed for ${priority}:`, scanError.message);
+//     return [];
+//   }
+// }
+async function getAvailableAudios(priority, userEmail, limit) {
   try {
-    // Combine type and severity if provided
-    const finalLabel = type && severity ? `${type}_${severity}` : label;
-
-    await docClient.send(new UpdateCommand({
+    console.log(`I am going to try Querying`);
+    const query = {
       TableName: process.env.LABELS_TABLE,
-      Key: { id },
+      IndexName: 'priority-label_count-index',
+      KeyConditionExpression: 'priority = :priority AND label_count < :target',
+      FilterExpression: 
+        '(attribute_not_exists(reserved_until) OR reserved_until < :now) AND ' +
+        'NOT contains(blacklisted_users, :user)',
+      ExpressionAttributeValues: {
+        ':priority': priority,
+        ':target': TARGET_LABELS,
+        ':now': Date.now(),
+        ':user': userEmail
+      },
+      //Limit: limit,
+      ScanIndexForward: false // Get highest label_count first (2/3 labels)
+    };
+
+  //   const query = {
+  //     TableName: process.env.LABELS_TABLE,
+  //     IndexName: 'priority-label_count-index',
+  //     KeyConditionExpression: 'priority = :priority',
+  //     ExpressionAttributeValues: {
+  //       ':priority': 'high'
+  //     },
+  //     Limit: 5
+  // };
+
+    
+    const result = await docClient.send(new QueryCommand(query));
+    console.log('Results of querying are:', JSON.stringify(result, null, 2));
+
+
+    return result.Items || [];
+  } catch (error) {
+    console.error(`Error querying ${priority} audios:`, error);
+    return [];
+  }
+}
+
+async function reserveAudioForUser(audioId, userEmail) {
+  try {
+    const result = await docClient.send(new UpdateCommand({
+      TableName: process.env.LABELS_TABLE,
+      Key: { id: audioId },
       UpdateExpression: `
-        SET label_map = list_append(if_not_exists(label_map, :emptyList), :newLabel),
-            label_count = if_not_exists(label_count, :zero) + :one,
-            last_labeled_at = :now,
-            updated_at = :now
+        SET reserved_by = :user,
+            reserved_until = :until,
+            cleanup_status = :status
+      `,
+      ConditionExpression: `
+        (attribute_not_exists(reserved_until) OR reserved_until < :now) AND
+        label_count < :target AND
+        (attribute_not_exists(blacklisted_users) OR NOT contains(blacklisted_users, :user))
       `,
       ExpressionAttributeValues: {
+        ':user': userEmail,
+        ':until': Date.now() + RESERVATION_TIMEOUT,
+        ':status': 'reserved',
+        ':now': Date.now(),
+        ':target': TARGET_LABELS
+        // REMOVED: empty_list and user_list
+      },
+      ReturnValues: 'ALL_NEW'
+  }));
+
+    
+    console.log(`✅ Reserved audio ${audioId} for ${userEmail}`);
+    return result.Attributes;
+  } catch (error) {
+    if (error.name === 'ConditionalCheckFailedException') {
+      console.log(`❌ Audio ${audioId} already taken or user blacklisted`);
+    } else {
+      console.error(`Error reserving audio ${audioId}:`, error);
+    }
+    return null;
+  }
+}
+
+router.get('/label-items', async (req, res) => {
+  const userEmail = req.headers['user-email'];
+  
+  if (!userEmail) {
+    return res.status(400).json({ error: 'User email required' });
+  }
+  
+  console.log(`🎯 User ${userEmail} requesting next audio`);
+
+  // Update active users tracking
+  await updateUserActivity(userEmail);
+  const activeUserCount = getActiveUserCount();
+  const dynamicLimit = calculateDynamicLimit(activeUserCount);
+  
+  try {
+    // Step 1: Find candidates by priority (high → medium → low)
+    const candidateResult = await findCandidatesByPriority(userEmail,dynamicLimit);
+    
+    if (!candidateResult) {
+      console.log(`📭 No audios available for ${userEmail}`);
+      return res.json({ 
+        audio: null, 
+        message: 'No audios available for labeling at this time' 
+      });
+    }
+    
+    const { priority, candidates } = candidateResult;
+    
+    // Step 2: Try to reserve each candidate until success
+    let assignedAudio = null;
+    
+    for (const audio of candidates) {
+      console.log(`🔄 Attempting to reserve ${audio.id}...`);
+      const reservedAudio = await reserveAudioForUser(audio.id, userEmail);
+      
+      
+      if (reservedAudio) {
+        assignedAudio = reservedAudio;
+        break;
+      }
+    }
+    
+    if (!assignedAudio) {
+      console.log(`😞 All candidates taken for ${userEmail}`);
+      return res.json({ 
+        audio: null, 
+        message: 'All selected audios were taken, please try again' 
+      });
+    }
+    
+    // Step 3: Generate presigned URL
+    const audioUrl = await getPresignedUrl(assignedAudio.s3_key);
+    
+    // Step 4: Prepare response
+    const responseAudio = {
+      id: assignedAudio.id,
+      original_name:assignedAudio.original_name,
+      audio_url: audioUrl,
+      priority: assignedAudio.priority,
+      label_count: assignedAudio.label_count || 0,
+      target_labels: TARGET_LABELS,
+      filename: assignedAudio.s3_key.split('/').pop() || 'audio',
+      reservation_id: `res_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`
+    };
+    
+    console.log(`🎉 Assigned ${assignedAudio.priority} priority audio to ${userEmail}`);
+    console.log(`   Audio: ${assignedAudio.id}, Labels: ${assignedAudio.label_count || 0}/3`);
+    console.log(`   Audio: ${assignedAudio.original_name}`);
+
+    
+    res.json({ audio: responseAudio });
+    
+  } catch (error) {
+    console.error('🚨 Error in /next-audio:', error);
+    res.status(500).json({ 
+      audio: null, 
+      error: 'Internal server error' 
+    });
+  }
+});
+
+
+router.post('/labeled-items', async (req, res) => {
+  const { audioId,label, type,severity, reservation_id,start_time } = req.body;
+  const userEmail = req.headers['user-email'];
+
+  console.log('🔔 Label submission received:', {
+    audioId, label, type, severity, reservation_id, userEmail
+  });
+
+  const startTime = start_time || Date.now();
+  const end_time = Date.now();
+  const time_taken = (end_time - startTime)/1000;
+  const TARGET_LABELS = 3;
+
+  const finalLabel = type && severity ? `${type}_${severity}` : label;
+
+  const labelingRecord = {
+    userEmail,
+    finalLabel,
+    time_taken,
+    timestamp: end_time
+  };
+
+  console.log(`📝 Processing label: ${finalLabel} for audio ${audioId} by ${userEmail}`);
+
+  try {
+    // Atomic update: remove reservation, increment count, add to history
+    const result = await docClient.send(new UpdateCommand({
+      TableName: process.env.LABELS_TABLE,
+      Key: { id: audioId },
+      UpdateExpression: `
+        REMOVE reserved_by, reserved_until, reserved_at, reservation_id, cleanup_status
+        SET 
+          label_map = list_append(if_not_exists(label_map, :emptyList), :newLabel),
+          labeling_history = list_append(if_not_exists(labeling_history, :emptyHistory), :newRecord),
+          label_count = if_not_exists(label_count, :zero) + :one,
+          last_labeled_at = :now
+          ADD blacklisted_users :userSet
+      `,
+      ConditionExpression: 'reserved_by = :user AND reserved_until > :now',
+      ExpressionAttributeValues: {
         ":newLabel": [finalLabel],
+        ":newRecord": [labelingRecord],
         ":emptyList": [],
+        ":emptyHistory": [],
         ":one": 1,
         ":zero": 0,
-        ":now": Date.now(),
+        ":now": end_time,
+        ":user": userEmail,
+        ":userSet": new Set([userEmail]) // ADDED: Blacklist the user
       },
-      ReturnValues: "UPDATED_NEW",
+      ReturnValues: 'ALL_NEW'
     }));
+    
+    const updatedAudio = result.Attributes;
+    const newLabelCount = updatedAudio.label_count || 1;
 
-    console.log(`✅ Label submitted for ${id}: ${finalLabel}`);
-    res.json({ message: "Label submitted successfully" });
-  } catch (err) {
-    console.error("Error updating label:", err);
-    res.status(500).json({ error: err.message });
+    console.log(`✅ Label submitted for ${audioId} by ${userEmail}`);
+    console.log(`   New label count: ${updatedAudio.label_count}/3`);
+
+    // Calculate and update label confidence and average time
+    await updateAudioMetrics(audioId, newLabelCount);
+
+    // Check if audio reached 3 labels and copy to labeled_items
+    if (newLabelCount >= TARGET_LABELS) {
+      await copyToLabeledItems(updatedAudio);
+    }
+
+    
+    res.json({ 
+      success: true, 
+      new_label_count: updatedAudio.label_count,
+      labels_remaining: TARGET_LABELS - newLabelCount,
+      is_completed: newLabelCount >= TARGET_LABELS
+    });
+    
+  } catch (error) {
+    console.error('Error submitting label:', error);
+    
+    if (error.name === 'ConditionalCheckFailedException') {
+      res.status(409).json({ 
+        error: 'Reservation expired or invalid' 
+      });
+    } else {
+      res.status(500).json({ error: 'Failed to submit label' });
+    }
   }
 });
 
 
 
+
+// Export both router and initialize function
 module.exports = router;

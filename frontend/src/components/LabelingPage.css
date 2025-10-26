@@ -285,3 +285,64 @@
 .logout-btn:hover {
   background: #d32f2f;
 }
+
+/* Add to your LabelingPage.css */
+.logout-modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: rgba(0, 0, 0, 0.7);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 1000;
+}
+
+.logout-modal {
+  background: white;
+  padding: 2rem;
+  border-radius: 8px;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+  max-width: 400px;
+  width: 90%;
+  text-align: center;
+}
+
+.logout-modal-header h3 {
+  margin: 0 0 1rem 0;
+  color: #e74c3c;
+  font-size: 1.3rem;
+}
+
+.logout-modal-body {
+  margin-bottom: 1.5rem;
+  line-height: 1.5;
+  color: #333;
+}
+
+.logout-modal-body p {
+  margin: 0.5rem 0;
+}
+
+.logout-modal-actions {
+  display: flex;
+  justify-content: center;
+}
+
+.logout-modal-actions .logout-btn {
+  background: #e74c3c;
+  color: white;
+  border: none;
+  padding: 0.75rem 2rem;
+  border-radius: 6px;
+  cursor: pointer;
+  font-weight: bold;
+  font-size: 1rem;
+  transition: background 0.2s;
+}
+
+.logout-modal-actions .logout-btn:hover {
+  background: #c0392b;
+}

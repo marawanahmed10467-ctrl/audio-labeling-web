@@ -81,6 +81,8 @@ exports.login = async (req, res) => {
       token,
       user: userWithoutPassword
     });
+
+    
   } catch (err) {
     console.error("Login error:", err);
     res.status(500).json({ 

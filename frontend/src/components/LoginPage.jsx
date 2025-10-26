@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import api from '../api/axios';
 
 
+
 function LoginPage({ onLogin }) {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -20,34 +21,38 @@ function LoginPage({ onLogin }) {
         email,
         password,
       });
-
+      
       console.log("✅ Response received:", res.data);
       
       if (res.data.success) {
         const { token, user } = res.data;
         localStorage.setItem("token", token);
         localStorage.setItem("user", JSON.stringify(user));
+        
+        // NEW: Track user activity after successful login
+        try {
+          await api.post('/auth/user/login', {
+            userEmail: user.email
+          });
+        } catch (trackError) {
+          console.error("⚠️ User tracking failed, but login succeeded:", trackError);
+          // Don't fail login if tracking fails
+        }
+        console.log("✅ User activity tracked");
+
+        
         onLogin(user);
       } else {
         setError(res.data.message || "Login failed");
       }
       
     } catch (err) {
-      console.error("💥 FULL ERROR OBJECT:", err);
-      console.error("💥 Error response:", err.response);
-      console.error("💥 Error message:", err.message);
-      console.error("💥 Error code:", err.code);
-      
+      console.error("💥 Login error:", err);
       setError(err.response?.data?.message || "Login failed. Please try again.");
     } finally {
       setLoading(false);
     }
-  };
-
-  const handleDemoLogin = (demoEmail, demoPassword) => {
-    setEmail(demoEmail);
-    setPassword(demoPassword);
-  };
+};
 
   return (
     <div style={styles.container}>
