@@ -237,5 +237,4 @@ module.exports = {
   calculateConsensusLabel,
   updateAudioMetrics,
   copyToLabeledItems,
-  initializeCleanup
 };
