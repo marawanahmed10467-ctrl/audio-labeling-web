@@ -21,6 +21,8 @@ services:
       # Database tables
       USERS_TABLE: ${USERS_TABLE}
       LABELS_TABLE: ${LABELS_TABLE}
+      LABELED_ITEMS_TABLE=: ${Labeled_Audios}
+
     networks:
       - app-network
    

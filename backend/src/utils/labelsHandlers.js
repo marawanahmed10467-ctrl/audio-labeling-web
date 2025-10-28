@@ -106,6 +106,8 @@ async function copyToLabeledItems(audioItem) {
     // Calculate consensus label
     const consensusLabel = calculateConsensusLabel(labelMap);
 
+    console.log(`calculated consensusLabel is :${consensusLabel}`)
+
     // Create labeled item with EXACT SAME SCHEMA as LABELS_TABLE
     const labeledItem = {
       // Core audio data - same schema

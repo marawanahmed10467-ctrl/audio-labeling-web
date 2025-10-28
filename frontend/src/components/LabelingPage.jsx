@@ -177,7 +177,7 @@ const LabelingPanel = ({ user, onLogout }) => {
         }
       });
       
-      console.log("📦 Audio API response:", response.data);
+      //console.log("📦 Audio API response:", response.data);
       
       // Match backend response structure
       if (response.data.audio) {
@@ -258,7 +258,6 @@ const LabelingPanel = ({ user, onLogout }) => {
 
   useEffect(() => {
     if (currentAudio && currentAudio.audio_url && audioRef.current) {
-      console.log("🔗 Setting audio source:", currentAudio.audio_url);
       startTimeRef.current = Date.now();
       
       const audioElement = audioRef.current;

@@ -108,15 +108,7 @@ function LoginPage({ onLogin }) {
         </div>
       )}
 
-      <div style={styles.demoSection}>
-        <h4 style={styles.demoTitle}>Quick Test:</h4>
-        <button 
-          onClick={() => handleDemoLogin("admin@example.com", "admin123")}
-          style={styles.demoButton}
-        >
-          Use Admin Account
-        </button>
-      </div>
+   
     </div>
   );
 }

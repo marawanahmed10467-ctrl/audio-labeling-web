@@ -259,7 +259,6 @@ async function getAvailableAudios(priority, userEmail, limit) {
 
     
     const result = await docClient.send(new QueryCommand(query));
-    console.log('Results of querying are:', JSON.stringify(result, null, 2));
 
 
     return result.Items || [];
