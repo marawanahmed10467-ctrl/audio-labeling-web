@@ -23,7 +23,9 @@ app.use(cors({
     'https://audio-labeling-backend-env.eba-pgmcfbu2.eu-central-1.elasticbeanstalk.com',
     "https://staging.d22qs6a8e1ppd0.amplifyapp.com",
     "http://www.resmonics.net/",
-    "https://www.resmonics.net/"
+    "https://www.resmonics.net/",
+    "http://16.resmonics.net/",
+    "https://16.resmonics.net/"
   ],
   credentials: true
 }));
