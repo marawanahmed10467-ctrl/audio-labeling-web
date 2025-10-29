@@ -13,16 +13,17 @@ const app = express();
 app.use(cors({
   origin: [
     'http://localhost:3000',
-    'http://localhost:5000',
-    'http://localhost',
-    'http://16.63.31.242',          
+    'http://16.63.31.242',  
+    'https://16.63.31.242',          
     'http://16.63.31.242:80',       
-    'http://16.63.31.242:3000',     
+    'http://16.63.31.242:3000',  
+    'https://16.63.31.242:80',       
+    'https://16.63.31.242:3000',   
     'https://dazzling-cactus-707f06.netlify.app',
     'https://audio-labeling-backend-env.eba-pgmcfbu2.eu-central-1.elasticbeanstalk.com',
     "https://staging.d22qs6a8e1ppd0.amplifyapp.com",
-    "http://localhost:80",
-    "http://www.resmonics.net"
+    "http://www.resmonics.net/",
+    "https://www.resmonics.net/"
   ],
   credentials: true
 }));
