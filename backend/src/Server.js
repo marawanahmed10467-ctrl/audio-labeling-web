@@ -32,7 +32,9 @@ app.use(cors({
     "http://16.resmonics.net/",
     "https://16.resmonics.net/",
     "http://resmonics.net:3000",
-    "https://resmonics.net:3000"
+    "https://resmonics.net:3000",
+    "http://resmonics.net/",
+    "https://resmonics.net/"
   ],
   credentials: true
 }));
