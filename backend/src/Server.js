@@ -23,14 +23,16 @@ app.use(cors({
     'https://16.63.31.242:80',       
     'https://16.63.31.242:3000', 
     'http://16.63.31.242:5000',
-    'https://16.63.31.242:5000',  
+    'https://16.63.31.242:5000',   
     'https://dazzling-cactus-707f06.netlify.app',
     'https://audio-labeling-backend-env.eba-pgmcfbu2.eu-central-1.elasticbeanstalk.com',
     "https://staging.d22qs6a8e1ppd0.amplifyapp.com",
     "http://www.resmonics.net/",
     "https://www.resmonics.net/",
     "http://16.resmonics.net/",
-    "https://16.resmonics.net/"
+    "https://16.resmonics.net/",
+    "http://resmonics.net:3000",
+    "https://resmonics.net:3000"
   ],
   credentials: true
 }));
