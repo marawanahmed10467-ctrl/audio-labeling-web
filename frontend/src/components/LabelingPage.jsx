@@ -17,13 +17,19 @@ function ForcedLogoutChecker({ userEmail, onForcedLogout }) {
     const checkLogout = async () => {
       try {
         console.log("⏳ Checking logout status for:", userEmail);
-        const url = `api/auth/user/should-logout?userEmail=${encodeURIComponent(userEmail)}`;
-        console.log("📡 Making request to:", url);
+
+        const response = await api.get(`/auth/user/should-logout`, {
+          params: { userEmail }
+        });
+        const data = response.data;
+
+        //const url = `/api/auth/user/should-logout?userEmail=${encodeURIComponent(userEmail)}`;
+        //console.log("📡 Making request to:", url);
         
-        const response = await fetch(url);
+        //const response = await fetch(url);
         console.log("📨 Response status:", response.status);
         
-        const data = await response.json();
+        //const data = await response.json();
         console.log("📊 Logout check response:", data);
         
         if (data.shouldLogout) {
@@ -89,6 +95,8 @@ function ForcedLogoutChecker({ userEmail, onForcedLogout }) {
 const LabelingPanel = ({ user, onLogout }) => {
   const [currentAudio, setCurrentAudio] = useState(null);
   const [audioID, setaudioID] = useState(null);
+  const [audioPriority, setaudioPriority] = useState(null);
+  const [audioKey, setaudioKey] = useState(null);
   const [loading, setLoading] = useState(false);
   const [labelCount, setLabelCount] = useState(0);
   const [audioError, setAudioError] = useState(null);
@@ -106,13 +114,17 @@ const LabelingPanel = ({ user, onLogout }) => {
     "d": "dry", 
     "r": "regular",
     "u": "unknown",
-    "f": "false positive"
+    "f": "false positive",
+    "z": "wheezing" // ADDED: Wheezing option
   };
 
   const severityMap = {
-    "s": "severe",
-    "h": "healthy", 
-    "u": "unknown"
+    "1": "mild", // CHANGED: 1 for Mild
+    "3": "mild-to-medium", // CHANGED: 3 for Mild-to-medium
+    "4": "medium", // CHANGED: 5 for Medium
+    "7": "medium-to-severe", // CHANGED: 7 for Medium-to-severe
+    "9": "severe", // CHANGED: 9 for Severe
+    "u": "unknown" // KEPT: Unknown option
   };
 
   // Helper function to safely get user name from different user structures
@@ -187,10 +199,14 @@ const LabelingPanel = ({ user, onLogout }) => {
           reservation_id: audioData.reservation_id,
           label_count: audioData.label_count,
           priority: audioData.priority,
-          filename: audioData.filename
+          filename: audioData.filename,
+          s3_key:audioData.s3_key
         });
         setCurrentAudio(audioData);
         setaudioID(audioData.original_name);
+
+
+
 
         
         // Reset audio element
@@ -324,10 +340,13 @@ const LabelingPanel = ({ user, onLogout }) => {
         type: selectedType,
         severity: selectedSeverity,
         reservation_id: currentAudio.reservation_id,
+        priority:currentAudio.priority,
+        s3_key:currentAudio.s3_key,
+        original_name:currentAudio.original_name,
         start_time: startTimeRef.current
       };
 
-      console.log("📤 Submitting label:", submissionData);
+      // console.log("📤 Submitting label:", submissionData);
       
       const response = await api.post('/audio/labeled-items', 
         submissionData,
@@ -339,7 +358,7 @@ const LabelingPanel = ({ user, onLogout }) => {
         }
       );
       
-      console.log("✅ Label submission response:", response.data);
+      // console.log("✅ Label submission response:", response.data);
       
       if (response.data.success) {
         setLabelCount(prev => prev + 1);
@@ -451,7 +470,7 @@ const LabelingPanel = ({ user, onLogout }) => {
     return (
       <div className="no-audio">
         <h3>No audio files available for labeling</h3>
-        <p>All audio files have been labeled at least 3 times, or no audio is currently available.</p>
+        <p> No audio is currently available.</p>
         <div className="activity-info">
           <p>👥 Currently active labelers: {activeUsers}</p>
           <p>📊 Your labels today: {labelCount}</p>

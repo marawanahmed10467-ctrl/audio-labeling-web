@@ -92,7 +92,7 @@ async function updateAudioMetrics(audioId, labelCount) {
 }
 
 // Function to copy completed audio to labeled_items table
-async function copyToLabeledItems(audioItem) {
+async function copyToLabeledItems(audioItem,table_name) {
   try {
     const labelMap = audioItem.label_map || [];
     const labelingHistory = audioItem.labeling_history || [];
@@ -133,7 +133,7 @@ async function copyToLabeledItems(audioItem) {
 
     // Save to labeled_items table
     await docClient.send(new PutCommand({
-      TableName: process.env.LABELED_ITEMS_TABLE,
+      TableName: table_name,
       Item: labeledItem
     }));
 

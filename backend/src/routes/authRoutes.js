@@ -131,7 +131,7 @@ router.get('/user/should-logout', (req, res) => {  // ✅ Consistent
   const { userEmail } = req.query;
   const shouldLogout = usersPendingLogout.has(userEmail);
 
-  log.console("the user email to logout was sent to the frontend")
+  console.log("the user email to logout was sent to the frontend")
   
   if (shouldLogout) {
     usersPendingLogout.delete(userEmail);

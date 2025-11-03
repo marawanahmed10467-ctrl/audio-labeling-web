@@ -1,12 +1,14 @@
 const express = require('express');
 const multer = require('multer');
-const { PutCommand, ScanCommand, UpdateCommand, QueryCommand} = require('@aws-sdk/lib-dynamodb');
+const { PutCommand, ScanCommand, UpdateCommand, QueryCommand, GetCommand} = require('@aws-sdk/lib-dynamodb');
 const { docClient } = require('../utils/dynamodb');
 const { getPresignedUrl } = require('../utils/s3');
 const { uploadFile } = require('../utils/s3'); 
 const { createLabeler, getLabelers } = require('../controllers/adminController');
 const { updateAudioMetrics,copyToLabeledItems } = require('../utils/labelsHandlers'); 
 //const { updateUserActivity, trackLabelSubmission, getActiveUsers } = require('../controllers/userController');
+
+
 
 const router = express.Router();
 const upload = multer({
@@ -26,6 +28,52 @@ const upload = multer({
 const TARGET_LABELS = 3;
 const RESERVATION_TIMEOUT = 120000; // 2 minutes
 const activeUsers = new Map(); // userEmail -> lastActivity
+
+async function getUserRequestCount(userEmail) {
+  try {
+    const result = await docClient.send(new GetCommand({
+      TableName: process.env.USERS_TABLE,
+      Key: { email: userEmail }
+    }));
+    
+    return result.Item?.requestCount || 0;
+  } catch (error) {
+    console.log('❌ CATCH BLOCK - Error:', error.message);
+    return 0;
+  }
+}
+
+async function updateUserRequestCount(userEmail) {
+  console.log('🔍 [1] updateUserRequestCount started for:', userEmail);
+  
+  const currentCount = await getUserRequestCount(userEmail);
+  console.log('🔍 [2] currentCount:', currentCount, 'type:', typeof currentCount);
+  
+  let newCount = currentCount + 1;
+  console.log('🔍 [3] newCount after +1:', newCount, 'type:', typeof newCount);
+  
+  // Reset when it reaches 20
+  if (newCount > 20) {
+    newCount = 0;
+    console.log(`🔄 Reset count for ${userEmail} back to 0 (reached limit)`);
+  }
+  
+  console.log('🔍 [4] Final newCount to save:', newCount);
+  
+  const updateResult = await docClient.send(new UpdateCommand({
+    TableName: process.env.USERS_TABLE,
+    Key: { email: userEmail },
+    UpdateExpression: 'SET requestCount = :newCount',
+    ExpressionAttributeValues: {
+      ':newCount': newCount
+    }
+  }));
+  
+  console.log('🔍 [5] UpdateCommand result:', updateResult);
+  console.log('🔍 [6] Returning newCount:', newCount, 'type:', typeof newCount);
+  
+  return newCount;
+}
 
 // Labeler Management Routes
 router.post('/create-labeler', createLabeler);
@@ -59,7 +107,7 @@ router.post('/upload-audio', upload.array('audio', 10000), async (req, res) => {
           const firstFolder = pathParts[0].toLowerCase();
           console.log(`🎯 Checking first folder: ${firstFolder}`);
           
-          if (['high', 'medium', 'low'].includes(firstFolder)) {
+          if (['high', 'medium', 'low','standard'].includes(firstFolder)) {
             console.log(`✅ Detected priority: ${firstFolder}`);
             return firstFolder;
           }
@@ -68,7 +116,7 @@ router.post('/upload-audio', upload.array('audio', 10000), async (req, res) => {
         // Fallback: check any folder level for priority
         for (let i = 0; i < pathParts.length - 1; i++) {
           const folder = pathParts[i].toLowerCase();
-          if (['high', 'medium', 'low'].includes(folder)) {
+          if (['high', 'medium', 'low','standard'].includes(folder)) {
             console.log(`✅ Detected priority in nested folder: ${folder}`);
             return folder;
           }
@@ -166,23 +214,27 @@ function calculateDynamicLimit(activeUserCount) {
 
 
 async function findCandidatesByPriority(userEmail, limit) {
+  let priorities;
 
-  const priorities = ['high', 'medium', 'low'];
-  
+  if (userEmail != process.env.ADMIN_EMAIL) {
+    priorities = ['high', 'medium', 'low'];
+  } else {
+    priorities = ['standard'];
+  }
+
   for (const priority of priorities) {
     const candidates = await getAvailableAudios(priority, userEmail, limit);
     console.log(`I am trying to getAvailableAudios`);
 
-
-    
-    if (candidates.length > 0) {
+    if (candidates && candidates.length > 0) {
       console.log(`✅ Found ${candidates.length} ${priority} priority candidates`);
       return { priority, candidates };
     }
   }
-  
+
   return null;
 }
+
 // async function getAvailableAudios(priority, userEmail, limit = 15) {
 //   console.log(`🔍 Getting ${priority} priority audios - USING SCAN ONLY (index not available)`);
   
@@ -228,9 +280,21 @@ async function findCandidatesByPriority(userEmail, limit) {
 //   }
 // }
 async function getAvailableAudios(priority, userEmail, limit) {
-  try {
+  let query; // Declare query outside if/else blocks
+  
+  if (userEmail == process.env.ADMIN_EMAIL) {
+    console.log(`I am going to try Querying for the Admin`);
+    query = {
+    TableName: process.env.LABELS_TABLE,
+    IndexName: 'priority-index', // ← You need a GSI with priority as partition key
+    KeyConditionExpression: 'priority = :priority',
+    ExpressionAttributeValues: {
+      ':priority': priority,
+      },
+    };
+  } else {
     console.log(`I am going to try Querying`);
-    const query = {
+    query = { // Remove 'const', just assign to existing variable
       TableName: process.env.LABELS_TABLE,
       IndexName: 'priority-label_count-index',
       KeyConditionExpression: 'priority = :priority AND label_count < :target',
@@ -246,22 +310,11 @@ async function getAvailableAudios(priority, userEmail, limit) {
       //Limit: limit,
       ScanIndexForward: false // Get highest label_count first (2/3 labels)
     };
+  }
 
-  //   const query = {
-  //     TableName: process.env.LABELS_TABLE,
-  //     IndexName: 'priority-label_count-index',
-  //     KeyConditionExpression: 'priority = :priority',
-  //     ExpressionAttributeValues: {
-  //       ':priority': 'high'
-  //     },
-  //     Limit: 5
-  // };
-
-    
-    const result = await docClient.send(new QueryCommand(query));
-
-
-    return result.Items || [];
+  try {
+  const result = await docClient.send(new QueryCommand(query));
+  return result.Items || [];
   } catch (error) {
     console.error(`Error querying ${priority} audios:`, error);
     return [];
@@ -320,89 +373,146 @@ router.get('/label-items', async (req, res) => {
   await updateUserActivity(userEmail);
   const activeUserCount = getActiveUserCount();
   const dynamicLimit = calculateDynamicLimit(activeUserCount);
+
+ 
+  console.log('🔍 [A] Before calling updateUserRequestCount');
+  const userCounts = await updateUserRequestCount(userEmail);
+  console.log('🔍 [B] After calling - userCounts:', userCounts, 'type:', typeof userCounts);
+  console.log('🔍 [C] userCounts JSON:', JSON.stringify(userCounts));
+  console.log(`🎯 The user ${userEmail} count is ${userCounts}`);
   
-  try {
-    // Step 1: Find candidates by priority (high → medium → low)
-    const candidateResult = await findCandidatesByPriority(userEmail,dynamicLimit);
-    
-    if (!candidateResult) {
-      console.log(`📭 No audios available for ${userEmail}`);
-      return res.json({ 
-        audio: null, 
-        message: 'No audios available for labeling at this time' 
-      });
-    }
-    
-    const { priority, candidates } = candidateResult;
-    
-    // Step 2: Try to reserve each candidate until success
-    let assignedAudio = null;
-    
-    for (const audio of candidates) {
-      console.log(`🔄 Attempting to reserve ${audio.id}...`);
-      const reservedAudio = await reserveAudioForUser(audio.id, userEmail);
-      
-      
-      if (reservedAudio) {
-        assignedAudio = reservedAudio;
-        break;
+  if (userEmail != process.env.ADMIN_EMAIL && userCounts == 20) {
+
+    const params = {
+      TableName: process.env.LABELS_TABLE,
+      FilterExpression: 'priority = :priority', 
+      ExpressionAttributeValues: {
+        ':priority': 'standard'
+      },
+      ProjectionExpression: 'id, s3_key, original_name, priority, label_count' 
+    };
+
+    const result = await docClient.send(new ScanCommand(params)); 
+    const items = result.Items;
+
+    if (items.length > 0) {
+      // Step 1: Pick a random audio
+      const randomIndex = Math.floor(Math.random() * items.length);
+      const randomAudio = items[randomIndex]; // ✅ full object, not just ID
+
+      console.log('🎲 Randomly selected audio:', randomAudio.id);
+
+      // Step 2: Generate presigned URL
+      const audioUrl = await getPresignedUrl(randomAudio.s3_key);
+
+      // Step 3: Prepare response
+      const responseAudio = {
+        id: randomAudio.id,
+        original_name: randomAudio.original_name,
+        audio_url: audioUrl,
+        priority: randomAudio.priority,
+        label_count: randomAudio.label_count || 0,
+        target_labels: "no limit",
+        filename: randomAudio.s3_key.split('/').pop() || 'audio',
+        s3_key: randomAudio.s3_key,
+        reservation_id: `res_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`
+      };
+
+      console.log(`🎉 Assigned random audio to ${userEmail}`);
+      console.log(`   Audio: ${randomAudio.id}, Labels: ${randomAudio.label_count || 0}`);
+      console.log(`   Original name: ${randomAudio.original_name}`);
+
+      return res.json({ audio: responseAudio });
+
+
+    }} else {
+      try {
+        // Step 1: Find candidates by priority (high → medium → low)
+        const candidateResult = await findCandidatesByPriority(userEmail, dynamicLimit);
+        
+        if (!candidateResult) {
+          console.log(`📭 No audios available for ${userEmail}`);
+          return res.json({ 
+            audio: null, 
+            message: 'No audios available for labeling at this time' 
+          });
+        }
+        
+        const { priority, candidates } = candidateResult;
+        
+        // Step 2: Try to reserve each candidate until success
+        let assignedAudio = null;
+        
+        for (const audio of candidates) {
+          console.log(`🔄 Attempting to reserve ${audio.id}...`);
+          const reservedAudio = await reserveAudioForUser(audio.id, userEmail);
+          
+          if (reservedAudio) {
+            assignedAudio = reservedAudio;
+            break;
+          }
+        }
+        
+        if (!assignedAudio) {
+          console.log(`😞 All candidates taken for ${userEmail}`);
+          return res.json({ 
+            audio: null, 
+            message: 'All selected audios were taken, please try again' 
+          });
+        }
+        
+        // Step 3: Generate presigned URL
+        const audioUrl = await getPresignedUrl(assignedAudio.s3_key);
+        
+        // Step 4: Prepare response
+        const responseAudio = {
+          id: assignedAudio.id,
+          original_name: assignedAudio.original_name,
+          audio_url: audioUrl,
+          priority: assignedAudio.priority,
+          label_count: assignedAudio.label_count || 0,
+          target_labels: TARGET_LABELS,
+          filename: assignedAudio.s3_key.split('/').pop() || 'audio',
+          s3_key:assignedAudio.s3_key,
+          reservation_id: `res_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`
+        };
+        
+        console.log(`🎉 Assigned ${assignedAudio.priority} priority audio to ${userEmail}`);
+        console.log(`   Audio: ${assignedAudio.id}, Labels: ${assignedAudio.label_count || 0}/3`);
+        console.log(`   Audio: ${assignedAudio.original_name}`);
+        console.log(`   Audio: ${assignedAudio.s3_key}`);
+
+
+        return res.json({ audio: responseAudio });
+        
+      } catch (error) {
+        console.error('🚨 Error in /next-audio:', error);
+        return res.status(500).json({ 
+          audio: null, 
+          error: 'Internal server error' 
+        });
       }
     }
-    
-    if (!assignedAudio) {
-      console.log(`😞 All candidates taken for ${userEmail}`);
-      return res.json({ 
-        audio: null, 
-        message: 'All selected audios were taken, please try again' 
-      });
-    }
-    
-    // Step 3: Generate presigned URL
-    const audioUrl = await getPresignedUrl(assignedAudio.s3_key);
-    
-    // Step 4: Prepare response
-    const responseAudio = {
-      id: assignedAudio.id,
-      original_name:assignedAudio.original_name,
-      audio_url: audioUrl,
-      priority: assignedAudio.priority,
-      label_count: assignedAudio.label_count || 0,
-      target_labels: TARGET_LABELS,
-      filename: assignedAudio.s3_key.split('/').pop() || 'audio',
-      reservation_id: `res_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`
-    };
-    
-    console.log(`🎉 Assigned ${assignedAudio.priority} priority audio to ${userEmail}`);
-    console.log(`   Audio: ${assignedAudio.id}, Labels: ${assignedAudio.label_count || 0}/3`);
-    console.log(`   Audio: ${assignedAudio.original_name}`);
+ 
+}); // ✅ properly closed router.get
 
-    
-    res.json({ audio: responseAudio });
-    
-  } catch (error) {
-    console.error('🚨 Error in /next-audio:', error);
-    res.status(500).json({ 
-      audio: null, 
-      error: 'Internal server error' 
-    });
-  }
-});
+
 
 
 router.post('/labeled-items', async (req, res) => {
-  const { audioId,label, type,severity, reservation_id,start_time } = req.body;
+  const { audioId, type, severity, reservation_id, priority, s3_key, original_name, start_time } = req.body;
   const userEmail = req.headers['user-email'];
 
   console.log('🔔 Label submission received:', {
-    audioId, label, type, severity, reservation_id, userEmail
+    audioId, type, severity, reservation_id, priority, s3_key, original_name, start_time, userEmail
   });
 
   const startTime = start_time || Date.now();
   const end_time = Date.now();
-  const time_taken = (end_time - startTime)/1000;
+  const time_taken = (end_time - startTime) / 1000;
   const TARGET_LABELS = 3;
 
-  const finalLabel = type && severity ? `${type}_${severity}` : label;
+  const finalLabel = type && severity ? `${type}_${severity}` : 'unknown';
 
   const labelingRecord = {
     userEmail,
@@ -412,73 +522,165 @@ router.post('/labeled-items', async (req, res) => {
   };
 
   console.log(`📝 Processing label: ${finalLabel} for audio ${audioId} by ${userEmail}`);
+  console.log(`📝 Priority for the received audio is: ${priority}`);
 
   try {
-    // Atomic update: remove reservation, increment count, add to history
-    const result = await docClient.send(new UpdateCommand({
-      TableName: process.env.LABELS_TABLE,
-      Key: { id: audioId },
-      UpdateExpression: `
-        REMOVE reserved_by, reserved_until, reserved_at, reservation_id, cleanup_status
-        SET 
-          label_map = list_append(if_not_exists(label_map, :emptyList), :newLabel),
-          labeling_history = list_append(if_not_exists(labeling_history, :emptyHistory), :newRecord),
-          label_count = if_not_exists(label_count, :zero) + :one,
-          last_labeled_at = :now
+    let updatedAudio;
+    let newLabelCount;
+
+    if (priority == "standard") {
+      if (userEmail == process.env.ADMIN_EMAIL) {
+        // ADMIN: Get from LABELS_TABLE and create/update in STANDARD_TABLE
+        const audioData = await docClient.send(new GetCommand({
+          TableName: process.env.LABELS_TABLE,
+          Key: { id: audioId }
+        }));
+
+        if (!audioData.Item) {
+          return res.status(404).json({ error: `Audio ${audioId} not found in source table` });
+        }
+
+        // Create or update in STANDARD_TABLE
+        await docClient.send(new PutCommand({
+          TableName: process.env.STANDARD_TABLE,
+          Item: {
+            ...audioData.Item,
+            labeling_history: [...(audioData.Item.labeling_history || []), labelingRecord],
+            updated_at: Date.now()
+          }
+        }));
+
+        newLabelCount = (audioData.Item.label_count || 0) + 1;
+        console.log(`✅ Label submitted for ${audioId} by ${userEmail} (ADMIN)`);
+        console.log(`   Updated Table: ${process.env.STANDARD_TABLE}`);
+
+      } else {
+        // NON-ADMIN: Try to update existing item in STANDARD_TABLE
+        try {
+          const result = await docClient.send(new UpdateCommand({
+            TableName: process.env.STANDARD_TABLE,
+            Key: { id: audioId },
+            UpdateExpression: `
+              SET labeling_history = list_append(if_not_exists(labeling_history, :emptyHistory), :newRecord)
+            `,
+            ExpressionAttributeValues: {
+              ':emptyHistory': [],
+              ':newRecord': [labelingRecord]
+            },
+            ReturnValues: 'ALL_NEW'
+          }));
+          updatedAudio = result.Attributes;
+          newLabelCount = updatedAudio.label_count || 1;
+          console.log(`✅ Label submitted for ${audioId} by ${userEmail}`);
+          console.log(`the updated table by the user ${userEmail} is ${process.env.STANDARD_TABLE}`);
+
+        } catch (error) {
+          if (error.name === 'ResourceNotFoundException' || error.name === 'ConditionalCheckFailedException') {
+            console.log(`⚠️ Audio ${audioId} not found in STANDARD_TABLE, creating new entry...`);
+            
+            // Get audio data from source table and create in STANDARD_TABLE
+            const audioData = await docClient.send(new GetCommand({
+              TableName: process.env.LABELS_TABLE,
+              Key: { id: audioId }
+            }));
+
+            if (audioData.Item) {
+              await docClient.send(new PutCommand({
+                TableName: process.env.STANDARD_TABLE,
+                Item: {
+                  ...audioData.Item,
+                  labeling_history: [...(audioData.Item.labeling_history || []), labelingRecord],
+                  updated_at: Date.now()
+                }
+              }));
+              newLabelCount = (audioData.Item.label_count || 0) + 1;
+              console.log(`✅ Created ${audioId} in STANDARD_TABLE and added label`);
+            } else {
+              return res.status(404).json({ error: `Audio ${audioId} not found in any table` });
+            }
+          } else {
+            throw error;
+          }
+        }
+      }
+
+    // For standard priority, return success response
+    return res.json({
+      success: true,
+      new_label_count: newLabelCount,
+      labels_remaining: TARGET_LABELS - newLabelCount,
+      is_completed: newLabelCount >= TARGET_LABELS,
+    });
+
+    } else {
+      // NON-STANDARD priority: Update in LABELS_TABLE
+      const result = await docClient.send(new UpdateCommand({
+        TableName: process.env.LABELS_TABLE,
+        Key: { id: audioId },
+        UpdateExpression: `
+          REMOVE reserved_by, reserved_until, reserved_at, reservation_id, cleanup_status
+          SET 
+            label_map = list_append(if_not_exists(label_map, :emptyList), :newLabel),
+            labeling_history = list_append(if_not_exists(labeling_history, :emptyHistory), :newRecord),
+            label_count = if_not_exists(label_count, :zero) + :one,
+            last_labeled_at = :now
           ADD blacklisted_users :userSet
-      `,
-      ConditionExpression: 'reserved_by = :user AND reserved_until > :now',
-      ExpressionAttributeValues: {
-        ":newLabel": [finalLabel],
-        ":newRecord": [labelingRecord],
-        ":emptyList": [],
-        ":emptyHistory": [],
-        ":one": 1,
-        ":zero": 0,
-        ":now": end_time,
-        ":user": userEmail,
-        ":userSet": new Set([userEmail]) // ADDED: Blacklist the user
-      },
-      ReturnValues: 'ALL_NEW'
-    }));
-    
-    const updatedAudio = result.Attributes;
-    const newLabelCount = updatedAudio.label_count || 1;
+        `,
+        ConditionExpression: 'reserved_by = :user AND reserved_until > :now',
+        ExpressionAttributeValues: {
+          ':newLabel': [finalLabel],
+          ':newRecord': [labelingRecord],
+          ':emptyList': [],
+          ':emptyHistory': [],
+          ':one': 1,
+          ':zero': 0,
+          ':now': end_time,
+          ':user': userEmail,
+          ':userSet': new Set([userEmail])
+        },
+        ReturnValues: 'ALL_NEW'
+      }));
 
-    console.log(`✅ Label submitted for ${audioId} by ${userEmail}`);
-    console.log(`   New label count: ${updatedAudio.label_count}/3`);
+      updatedAudio = result.Attributes;
+      newLabelCount = updatedAudio.label_count || 1;
 
-    // Calculate and update label confidence and average time
-    await updateAudioMetrics(audioId, newLabelCount);
+      console.log(`✅ Label submitted for ${audioId} by ${userEmail}`);
+      console.log(`   New label count: ${updatedAudio.label_count}/3`);
 
-    // Check if audio reached 3 labels and copy to labeled_items
-    if (newLabelCount >= TARGET_LABELS) {
-      await copyToLabeledItems(updatedAudio);
+      // Calculate and update label confidence and average time
+      await updateAudioMetrics(audioId, newLabelCount);
+
+      // Check if audio reached 3 labels and copy to labeled_items
+      if (newLabelCount >= TARGET_LABELS) {
+        await copyToLabeledItems(updatedAudio, process.env.LABELED_ITEMS_TABLE);
+      }
+
+      return res.json({
+        success: true,
+        new_label_count: updatedAudio.label_count,
+        labels_remaining: TARGET_LABELS - newLabelCount,
+        is_completed: newLabelCount >= TARGET_LABELS,
+      });
     }
 
-    
-    res.json({ 
-      success: true, 
-      new_label_count: updatedAudio.label_count,
-      labels_remaining: TARGET_LABELS - newLabelCount,
-      is_completed: newLabelCount >= TARGET_LABELS
-    });
-    
   } catch (error) {
     console.error('Error submitting label:', error);
-    
+
     if (error.name === 'ConditionalCheckFailedException') {
-      res.status(409).json({ 
-        error: 'Reservation expired or invalid' 
+      return res.status(409).json({
+        error: 'Reservation expired or invalid'
+      });
+    } else if (error.name === 'ResourceNotFoundException') {
+      return res.status(404).json({
+        error: 'Audio not found'
       });
     } else {
-      res.status(500).json({ error: 'Failed to submit label' });
+      return res.status(500).json({ 
+        error: 'Failed to submit label',
+        details: error.message 
+      });
     }
-  }
-});
-
-
-
+  }});
 
 // Export both router and initialize function
 module.exports = router;
