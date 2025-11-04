@@ -4,7 +4,7 @@ const { PutCommand, ScanCommand, UpdateCommand, QueryCommand, GetCommand} = requ
 const { docClient } = require('../utils/dynamodb');
 const { getPresignedUrl } = require('../utils/s3');
 const { uploadFile } = require('../utils/s3'); 
-const { createLabeler, getLabelers } = require('../controllers/adminController');
+const { createLabeler, getLabelers, delete_user } = require('../controllers/adminController');
 const { updateAudioMetrics,copyToLabeledItems } = require('../utils/labelsHandlers'); 
 //const { updateUserActivity, trackLabelSubmission, getActiveUsers } = require('../controllers/userController');
 
@@ -78,6 +78,7 @@ async function updateUserRequestCount(userEmail) {
 // Labeler Management Routes
 router.post('/create-labeler', createLabeler);
 router.get('/labelers', getLabelers);
+router.delete(`/delete-user`,delete_user);
 
 // Enhanced audio upload with priority system
 router.post('/upload-audio', upload.array('audio', 10000), async (req, res) => {
@@ -500,7 +501,7 @@ router.get('/label-items', async (req, res) => {
 
 
 router.post('/labeled-items', async (req, res) => {
-  const { audioId, type, severity, reservation_id, priority, s3_key, original_name, start_time } = req.body;
+  const { audioId, type, severity,age,sex, reservation_id, priority, s3_key, original_name, start_time } = req.body;
   const userEmail = req.headers['user-email'];
 
   console.log('🔔 Label submission received:', {
@@ -512,7 +513,7 @@ router.post('/labeled-items', async (req, res) => {
   const time_taken = (end_time - startTime) / 1000;
   const TARGET_LABELS = 3;
 
-  const finalLabel = type && severity ? `${type}_${severity}` : 'unknown';
+  const finalLabel = type && severity && age && sex ? `${type}_${severity}_${age}_${sex}` : 'unknown';
 
   const labelingRecord = {
     userEmail,

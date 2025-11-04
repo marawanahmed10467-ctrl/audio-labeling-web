@@ -194,3 +194,58 @@
   from { opacity: 0; transform: translateY(10px); }
   to { opacity: 1; transform: translateY(0); }
 }
+
+/* Add these styles to your existing AdminPage.css */
+
+.warning-message {
+  background-color: #fff3cd;
+  border: 1px solid #ffeaa7;
+  border-radius: 4px;
+  padding: 12px;
+  margin: 15px 0;
+  font-size: 14px;
+}
+
+.warning-message ul {
+  margin: 8px 0 0 0;
+  padding-left: 20px;
+}
+
+.warning-message li {
+  margin-bottom: 4px;
+}
+
+.delete-btn {
+  background-color: #dc3545 !important;
+}
+
+.delete-btn:hover:not(:disabled) {
+  background-color: #c82333 !important;
+}
+
+.delete-btn:disabled {
+  background-color: #6c757d !important;
+  cursor: not-allowed;
+}
+
+.management-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 20px;
+  margin-bottom: 20px;
+}
+
+/* Make sure the cards are properly styled */
+.management-card {
+  background: white;
+  border-radius: 8px;
+  padding: 20px;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+  border: 1px solid #e0e0e0;
+}
+
+@media (max-width: 768px) {
+  .management-grid {
+    grid-template-columns: 1fr;
+  }
+}

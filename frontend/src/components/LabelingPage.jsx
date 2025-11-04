@@ -104,6 +104,8 @@ const LabelingPanel = ({ user, onLogout }) => {
   const [currentStep, setCurrentStep] = useState('type'); 
   const [selectedType, setSelectedType] = useState(null);
   const [selectedSeverity, setSelectedSeverity] = useState(null);
+  const [selectedAge, setSelectedAge] = useState(null);
+  const [selectedSex, setSelectedSex] = useState(null);
   const [activeUsers, setActiveUsers] = useState(0);
   const [debugInfo, setDebugInfo] = useState({});
   const audioRef = useRef(null);
@@ -125,6 +127,24 @@ const LabelingPanel = ({ user, onLogout }) => {
     "7": "medium-to-severe", // CHANGED: 7 for Medium-to-severe
     "9": "severe", // CHANGED: 9 for Severe
     "u": "unknown" // KEPT: Unknown option
+  };
+
+  // NEW: Age options mapping
+  const ageMap = {
+    "i": "infant", // Infant (0 - 2 years)
+    "y": "young-child", // Young Child (3 to 6 years)
+    "c": "child", // Child (7 to 12 years)
+    "d": "adolescent", // Adolescent (13 to 17 years)
+    "a": "adult", // Adults (18 to 70 years)
+    "s": "senior", // Senior (70+ years)
+    "u": "unknown" // Unknown
+  };
+
+  // NEW: Sex options mapping
+  const sexMap = {
+    "m": "male", // Male
+    "f": "female", // Female
+    "u": "unknown" // Unknown
   };
 
   // Helper function to safely get user name from different user structures
@@ -171,6 +191,8 @@ const LabelingPanel = ({ user, onLogout }) => {
       setCurrentStep('type');
       setSelectedType(null);
       setSelectedSeverity(null);
+      setSelectedAge(null);
+      setSelectedSex(null);
       startTimeRef.current = Date.now();
       
       const token = localStorage.getItem('token');
@@ -320,7 +342,7 @@ const LabelingPanel = ({ user, onLogout }) => {
   }, []);
 
   const submitLabels = async () => {
-    if (!currentAudio || !selectedType || !selectedSeverity) {
+    if (!currentAudio || !selectedType || !selectedSeverity || !selectedAge || !selectedSex) {
       console.error('❌ Missing required data for submission');
       setSubmissionError('Missing required data for submission');
       return;
@@ -334,15 +356,17 @@ const LabelingPanel = ({ user, onLogout }) => {
         throw new Error('No user data available');
       }
       
-      // Match backend expected payload structure
+      // Match backend expected payload structure - UPDATED with age and sex
       const submissionData = {
         audioId: currentAudio.id,
         type: selectedType,
         severity: selectedSeverity,
+        age: selectedAge, // NEW: Added age
+        sex: selectedSex, // NEW: Added sex
         reservation_id: currentAudio.reservation_id,
-        priority:currentAudio.priority,
-        s3_key:currentAudio.s3_key,
-        original_name:currentAudio.original_name,
+        priority: currentAudio.priority,
+        s3_key: currentAudio.s3_key,
+        original_name: currentAudio.original_name,
         start_time: startTimeRef.current
       };
 
@@ -395,6 +419,24 @@ const LabelingPanel = ({ user, onLogout }) => {
     const selectedSeverityValue = severityMap[normalizedKey];
     console.log(`🎯 Selected severity: ${selectedSeverityValue}`);
     setSelectedSeverity(selectedSeverityValue);
+    setCurrentStep('age');
+  };
+
+  // NEW: Age selection handler
+  const handleAgeSelect = (ageKey) => {
+    const normalizedKey = ageKey.toLowerCase();
+    const selectedAgeValue = ageMap[normalizedKey];
+    console.log(`🎯 Selected age: ${selectedAgeValue}`);
+    setSelectedAge(selectedAgeValue);
+    setCurrentStep('sex');
+  };
+
+  // NEW: Sex selection handler
+  const handleSexSelect = (sexKey) => {
+    const normalizedKey = sexKey.toLowerCase();
+    const selectedSexValue = sexMap[normalizedKey];
+    console.log(`🎯 Selected sex: ${selectedSexValue}`);
+    setSelectedSex(selectedSexValue);
     setCurrentStep('confirm');
   };
 
@@ -402,6 +444,8 @@ const LabelingPanel = ({ user, onLogout }) => {
     console.log("🔄 Restarting labeling process");
     setSelectedType(null);
     setSelectedSeverity(null);
+    setSelectedAge(null);
+    setSelectedSex(null);
     setCurrentStep('type');
   };
 
@@ -410,7 +454,7 @@ const LabelingPanel = ({ user, onLogout }) => {
     submitLabels();
   };
 
-  // Keyboard handler for all steps
+  // Keyboard handler for all steps - UPDATED with new steps
   useEffect(() => {
     const handleKeyPress = (e) => {
       // Don't trigger if user is interacting with form elements
@@ -445,6 +489,22 @@ const LabelingPanel = ({ user, onLogout }) => {
           }
           break;
         
+        // NEW: Age step
+        case 'age':
+          if (ageMap[key]) {
+            e.preventDefault();
+            handleAgeSelect(key);
+          }
+          break;
+        
+        // NEW: Sex step
+        case 'sex':
+          if (sexMap[key]) {
+            e.preventDefault();
+            handleSexSelect(key);
+          }
+          break;
+        
         case 'confirm':
           if (key === 'enter') {
             e.preventDefault();
@@ -462,7 +522,7 @@ const LabelingPanel = ({ user, onLogout }) => {
 
     document.addEventListener('keydown', handleKeyPress);
     return () => document.removeEventListener('keydown', handleKeyPress);
-  }, [currentAudio, currentStep, selectedType, selectedSeverity]);
+  }, [currentAudio, currentStep, selectedType, selectedSeverity, selectedAge, selectedSex]);
 
   if (loading) return <div className="loading">Loading audio...</div>;
 
@@ -550,7 +610,7 @@ const LabelingPanel = ({ user, onLogout }) => {
         </div>
       </div>
 
-      {/* Progress Indicator */}
+      {/* Progress Indicator - UPDATED with new steps */}
       <div className="labeling-progress">
         <div className={`progress-step ${currentStep === 'type' ? 'active' : ''} ${selectedType ? 'completed' : ''}`}>
           <span>1</span>
@@ -562,8 +622,18 @@ const LabelingPanel = ({ user, onLogout }) => {
           <p>Severity</p>
           {selectedSeverity && <div className="checkmark">✓</div>}
         </div>
-        <div className={`progress-step ${currentStep === 'confirm' ? 'active' : ''}`}>
+        <div className={`progress-step ${currentStep === 'age' ? 'active' : ''} ${selectedAge ? 'completed' : ''}`}>
           <span>3</span>
+          <p>Age</p>
+          {selectedAge && <div className="checkmark">✓</div>}
+        </div>
+        <div className={`progress-step ${currentStep === 'sex' ? 'active' : ''} ${selectedSex ? 'completed' : ''}`}>
+          <span>4</span>
+          <p>Sex</p>
+          {selectedSex && <div className="checkmark">✓</div>}
+        </div>
+        <div className={`progress-step ${currentStep === 'confirm' ? 'active' : ''}`}>
+          <span>5</span>
           <p>Confirm</p>
         </div>
       </div>
@@ -619,15 +689,111 @@ const LabelingPanel = ({ user, onLogout }) => {
         </div>
       )}
 
-      {/* Step 3: Confirmation */}
+      {/* NEW: Step 3: Age Selection */}
+      {currentStep === 'age' && (
+        <div className="labeling-step">
+          <h3>Step 3: What is the age of the coughing person?</h3>
+          <div className="selected-info">
+            Currently selected: <strong>{selectedType} {selectedSeverity}</strong> 
+            <button onClick={handleRestart} className="change-type-btn">
+              Restart
+            </button>
+          </div>
+          <div className="shortcut-grid">
+            {Object.entries(ageMap).map(([key, label]) => (
+              <div 
+                key={key} 
+                className="shortcut-item"
+                onClick={() => handleAgeSelect(key)}
+              >
+                <kbd>{key.toUpperCase()}</kbd>
+                <span>
+                  {key === 'i' && 'Infant (0-2 years)'}
+                  {key === 'y' && 'Young Child (3-6 years)'}
+                  {key === 'c' && 'Child (7-12 years)'}
+                  {key === 'd' && 'Adolescent (13-17 years)'}
+                  {key === 'a' && 'Adult (18-70 years)'}
+                  {key === 's' && 'Senior (70+ years)'}
+                  {key === 'u' && 'Unknown'}
+                </span>
+              </div>
+            ))}
+          </div>
+          <div className="step-instructions">
+            <p>Press the corresponding key or click to select age</p>
+          </div>
+        </div>
+      )}
+
+      {/* NEW: Step 4: Sex Selection */}
+      {currentStep === 'sex' && (
+        <div className="labeling-step">
+          <h3>Step 4: What is the sex of the coughing person?</h3>
+          <div className="selected-info">
+            Currently selected: <strong>{selectedType} {selectedSeverity}, {selectedAge}</strong> 
+            <button onClick={handleRestart} className="change-type-btn">
+              Restart
+            </button>
+          </div>
+          <div className="shortcut-grid">
+            {Object.entries(sexMap).map(([key, label]) => (
+              <div 
+                key={key} 
+                className="shortcut-item"
+                onClick={() => handleSexSelect(key)}
+              >
+                <kbd>{key.toUpperCase()}</kbd>
+                <span>
+                  {key === 'm' && 'Male'}
+                  {key === 'f' && 'Female'}
+                  {key === 'u' && 'Unknown'}
+                </span>
+              </div>
+            ))}
+          </div>
+          <div className="step-instructions">
+            <p>Press the corresponding key or click to select sex</p>
+          </div>
+        </div>
+      )}
+
+      {/* Step 5: Confirmation - UPDATED with all fields */}
       {currentStep === 'confirm' && (
         <div className="labeling-step confirm-step">
-          <h3>Step 3: Confirm Your Labels</h3>
+          <h3>Step 5: Confirm Your Labels</h3>
           <div className="confirmation-details">
             <div className="label-summary">
               <h4>You selected:</h4>
               <div className="label-item">
-                <span className="label-type">{selectedType} {selectedSeverity}</span>
+                <span className="label-type">
+                  <strong>Type:</strong> {selectedType}
+                </span>
+              </div>
+              <div className="label-item">
+                <span className="label-severity">
+                  <strong>Severity:</strong> {selectedSeverity}
+                </span>
+              </div>
+              <div className="label-item">
+                <span className="label-age">
+                  <strong>Age:</strong> {
+                    selectedAge === 'infant' ? 'Infant (0-2 years)' :
+                    selectedAge === 'young-child' ? 'Young Child (3-6 years)' :
+                    selectedAge === 'child' ? 'Child (7-12 years)' :
+                    selectedAge === 'adolescent' ? 'Adolescent (13-17 years)' :
+                    selectedAge === 'adult' ? 'Adult (18-70 years)' :
+                    selectedAge === 'senior' ? 'Senior (70+ years)' :
+                    'Unknown'
+                  }
+                </span>
+              </div>
+              <div className="label-item">
+                <span className="label-sex">
+                  <strong>Sex:</strong> {
+                    selectedSex === 'male' ? 'Male' :
+                    selectedSex === 'female' ? 'Female' : 'Unknown'
+                  }
+                </span>
               </div>
             </div>
           </div>

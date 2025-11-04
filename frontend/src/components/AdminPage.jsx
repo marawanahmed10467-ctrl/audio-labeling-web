@@ -50,8 +50,10 @@ const ManagementTab = () => {
     email: '',
     password: ''
   });
+  const [deleteUserEmail, setDeleteUserEmail] = useState('');
   const [files, setFiles] = useState([]);
   const [loading, setLoading] = useState(false);
+  const [deleteLoading, setDeleteLoading] = useState(false);
   const [message, setMessage] = useState('');
 
   // Create Labeler
@@ -73,6 +75,43 @@ const ManagementTab = () => {
       setMessage(error.response?.data?.message || 'Error creating labeler');
     } finally {
       setLoading(false);
+    }
+  };
+
+  // Delete User - DynamoDB version
+  const handleDeleteUser = async (e) => {
+    e.preventDefault();
+    if (!deleteUserEmail) {
+      setMessage('Please enter an email address');
+      return;
+    }
+
+    // Confirm deletion
+    if (!window.confirm(`Are you sure you want to delete user ${deleteUserEmail}? This will remove all their labeling data permanently!`)) {
+      return;
+    }
+
+    setDeleteLoading(true);
+    try {
+      const token = localStorage.getItem('token');
+      const response = await api.delete('/audio/delete-user', {
+        headers: { Authorization: `Bearer ${token}` },
+        data: { email: deleteUserEmail }
+      });
+
+      if (response.data.success) {
+        setMessage(`User ${deleteUserEmail} deleted successfully!`);
+        setDeleteUserEmail('');
+        
+        // Log the details of what was removed
+        if (response.data.details) {
+          console.log('Deletion details:', response.data.details);
+        }
+      }
+    } catch (error) {
+      setMessage(error.response?.data?.message || 'Error deleting user');
+    } finally {
+      setDeleteLoading(false);
     }
   };
 
@@ -154,6 +193,42 @@ const ManagementTab = () => {
 
             <button type="submit" disabled={loading} className="submit-btn">
               {loading ? 'Creating...' : 'Create Labeler'}
+            </button>
+          </form>
+        </div>
+
+        {/* Delete User Section - DynamoDB */}
+        <div className="management-card">
+          <h2>Delete User</h2>
+          <form onSubmit={handleDeleteUser} className="management-form">
+            <div className="form-group">
+              <label>User Email to Delete:</label>
+              <input
+                type="email"
+                value={deleteUserEmail}
+                onChange={(e) => setDeleteUserEmail(e.target.value)}
+                required
+                placeholder="Enter user's email to delete"
+              />
+            </div>
+
+            <div className="warning-message">
+              <strong>⚠️ Warning:</strong> This action will permanently:
+              <ul>
+                <li>Remove user from Users Table</li>
+                <li>Reduce global label count by 1</li>
+                <li>Remove user's labeling history from all audio files</li>
+                <li>Remove user's label_map entries from all audio files</li>
+              </ul>
+              <p><strong>This action cannot be undone!</strong></p>
+            </div>
+
+            <button 
+              type="submit" 
+              disabled={deleteLoading || !deleteUserEmail}
+              className="submit-btn delete-btn"
+            >
+              {deleteLoading ? 'Deleting...' : 'Delete User'}
             </button>
           </form>
         </div>
