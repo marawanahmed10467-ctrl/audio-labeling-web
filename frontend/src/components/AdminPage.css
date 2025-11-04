@@ -16,6 +16,7 @@
   padding: 1rem 2rem;
   max-width: 1200px;
   margin: 0 auto;
+  box-sizing: border-box;
 }
 
 .header-content h1 {
@@ -50,6 +51,7 @@
   padding: 0 2rem 1rem;
   max-width: 1200px;
   margin: 0 auto;
+  box-sizing: border-box;
 }
 
 .nav-btn {
@@ -60,6 +62,7 @@
   font-size: 1rem;
   cursor: pointer;
   transition: all 0.3s ease;
+  box-sizing: border-box;
 }
 
 .nav-btn:hover {
@@ -76,7 +79,8 @@
 .admin-content {
   max-width: 1200px;
   margin: 0 auto;
-  padding: 0 2rem;
+  padding: 0;
+  box-sizing: border-box;
 }
 
 .management-tab {
@@ -86,8 +90,10 @@
 .management-grid {
   display: grid;
   grid-template-columns: 1fr 1fr;
-  gap: 2rem;
+  gap: 1.5rem;
   margin-bottom: 2rem;
+  padding: 0 2rem;
+  box-sizing: border-box;
 }
 
 .management-card {
@@ -95,6 +101,8 @@
   padding: 2rem;
   border-radius: 8px;
   box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+  box-sizing: border-box;
+  width: 100%;
 }
 
 .management-card h2 {
@@ -121,6 +129,7 @@
   border: 2px solid #e1e5e9;
   border-radius: 6px;
   font-size: 1rem;
+  box-sizing: border-box;
 }
 
 .management-form input:focus {
@@ -138,6 +147,7 @@
   font-size: 1rem;
   cursor: pointer;
   transition: background 0.3s ease;
+  box-sizing: border-box;
 }
 
 .submit-btn:hover:not(:disabled) {
@@ -154,6 +164,7 @@
   padding: 1rem;
   border-radius: 6px;
   margin: 1rem 0;
+  box-sizing: border-box;
 }
 
 .file-list h4 {
@@ -176,6 +187,7 @@
   border-radius: 6px;
   text-align: center;
   margin-top: 1rem;
+  box-sizing: border-box;
 }
 
 .message.success {
@@ -190,13 +202,6 @@
   border: 1px solid #f5c6cb;
 }
 
-@keyframes fadeIn {
-  from { opacity: 0; transform: translateY(10px); }
-  to { opacity: 1; transform: translateY(0); }
-}
-
-/* Add these styles to your existing AdminPage.css */
-
 .warning-message {
   background-color: #fff3cd;
   border: 1px solid #ffeaa7;
@@ -204,6 +209,7 @@
   padding: 12px;
   margin: 15px 0;
   font-size: 14px;
+  box-sizing: border-box;
 }
 
 .warning-message ul {
@@ -228,24 +234,90 @@
   cursor: not-allowed;
 }
 
-.management-grid {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 20px;
-  margin-bottom: 20px;
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: translateY(0); }
 }
 
-/* Make sure the cards are properly styled */
-.management-card {
+/* Additional container styles for three-card layout */
+.three-card-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  gap: 1.5rem;
+  margin-bottom: 2rem;
+  padding: 0 2rem;
+  box-sizing: border-box;
+}
+
+.single-card-container {
+  padding: 0 2rem;
+  margin-bottom: 2rem;
+  box-sizing: border-box;
+}
+
+.single-card {
   background: white;
+  padding: 2rem;
   border-radius: 8px;
-  padding: 20px;
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
-  border: 1px solid #e0e0e0;
+  box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+  box-sizing: border-box;
+  width: 100%;
+}
+
+/* Responsive design */
+@media (max-width: 1024px) {
+  .three-card-grid {
+    grid-template-columns: 1fr 1fr;
+    gap: 1rem;
+    padding: 0 1rem;
+  }
 }
 
 @media (max-width: 768px) {
   .management-grid {
     grid-template-columns: 1fr;
+    padding: 0 1rem;
+    gap: 1rem;
+  }
+  
+  .three-card-grid {
+    grid-template-columns: 1fr;
+    padding: 0 1rem;
+    gap: 1rem;
+  }
+  
+  .single-card-container {
+    padding: 0 1rem;
+  }
+  
+  .management-card,
+  .single-card {
+    padding: 1.5rem;
+  }
+  
+  .admin-nav {
+    padding: 0 1rem 1rem;
+    flex-wrap: wrap;
+  }
+  
+  .nav-btn {
+    padding: 0.75rem 1.5rem;
+    font-size: 0.9rem;
+  }
+  
+  .header-content {
+    padding: 1rem;
+  }
+}
+
+@media (max-width: 480px) {
+  .management-card,
+  .single-card {
+    padding: 1rem;
+  }
+  
+  .management-grid,
+  .three-card-grid {
+    gap: 0.75rem;
   }
 }
