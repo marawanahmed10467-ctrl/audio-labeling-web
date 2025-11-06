@@ -25,7 +25,7 @@ const upload = multer({
   }
 });
 
-const TARGET_LABELS = 3;
+const TARGET_LABELS = 2;
 const RESERVATION_TIMEOUT = 120000; // 2 minutes
 const activeUsers = new Map(); // userEmail -> lastActivity
 
