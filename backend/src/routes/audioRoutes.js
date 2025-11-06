@@ -511,7 +511,7 @@ router.post('/labeled-items', async (req, res) => {
   const startTime = start_time || Date.now();
   const end_time = Date.now();
   const time_taken = (end_time - startTime) / 1000;
-  const TARGET_LABELS = 3;
+  const TARGET_LABELS = 2;
 
   const finalLabel = type && severity && age && sex ? `${type}_${severity}_${age}_${sex}` : 'unknown';
 
