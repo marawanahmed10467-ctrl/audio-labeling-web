@@ -384,17 +384,40 @@ router.get('/label-items', async (req, res) => {
   
   if (userEmail != process.env.ADMIN_EMAIL && userCounts == 20) {
 
+    // const params = {
+    //   TableName: process.env.LABELS_TABLE,
+    //   FilterExpression: 'priority = :priority', 
+    //   ExpressionAttributeValues: {
+    //     ':priority': 'standard'
+    //   },
+    //   ProjectionExpression: 'id, s3_key, original_name, priority, label_count' 
+    // };
+
+    // const result = await docClient.send(new ScanCommand(params)); 
+    // const items = result.Items;
     const params = {
       TableName: process.env.LABELS_TABLE,
-      FilterExpression: 'priority = :priority', 
-      ExpressionAttributeValues: {
-        ':priority': 'standard'
-      },
-      ProjectionExpression: 'id, s3_key, original_name, priority, label_count' 
+      FilterExpression: 'priority = :priority',
+      ExpressionAttributeValues: { ':priority': 'standard' },
+      ProjectionExpression: 'id, s3_key, original_name, priority, label_count'
     };
 
-    const result = await docClient.send(new ScanCommand(params)); 
-    const items = result.Items;
+    let items = [];
+    let lastEvaluatedKey = undefined;
+
+    do {
+      if (lastEvaluatedKey) {
+        params.ExclusiveStartKey = lastEvaluatedKey;
+      }
+
+      const result = await docClient.send(new ScanCommand(params));
+      items = items.concat(result.Items);
+
+      lastEvaluatedKey = result.LastEvaluatedKey;
+
+    } while (lastEvaluatedKey);
+
+    console.log('All standard  items:', items);
 
     if (items.length > 0) {
       // Step 1: Pick a random audio
