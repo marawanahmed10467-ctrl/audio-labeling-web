@@ -401,6 +401,7 @@ router.get('/label-items', async (req, res) => {
       const randomIndex = Math.floor(Math.random() * items.length);
       const randomAudio = items[randomIndex]; // ✅ full object, not just ID
 
+      console.log('The total number of standrad audios:', items.length)
       console.log('🎲 Randomly selected audio:', randomAudio.id);
 
       // Step 2: Generate presigned URL
