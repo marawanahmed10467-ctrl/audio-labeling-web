@@ -579,7 +579,7 @@ const LabelingPanel = ({ user, onLogout }) => {
       )}
 
       <div className="audio-player">
-        <h3>Current Audio: {audioID}</h3>
+        {/* <h3>Current Audio: {audioID}</h3> */}
         
         {audioError && (
           <div className="audio-error">
