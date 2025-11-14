@@ -1,12 +1,26 @@
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
-const { GetCommand, PutCommand } = require('@aws-sdk/lib-dynamodb');
+const { GetCommand, PutCommand} = require('@aws-sdk/lib-dynamodb');
+const { DescribeTableCommand } = require('@aws-sdk/client-dynamodb');
 const {docClient} = require('../utils/dynamodb');
 
 // Add this debug
 console.log('docClient type:', typeof docClient);
 console.log('docClient has send method:', docClient && typeof docClient.send === 'function');
 console.log('docClient:', docClient);
+
+
+async function getItemCount(tableName) {
+  try {
+    const result = await docClient.send(
+      new DescribeTableCommand({ TableName: tableName })
+    );
+    return result.Table.ItemCount; 
+  } catch (error) {
+    console.error("Error getting item count:", error);
+    throw error;
+  }
+}
 
 exports.login = async (req, res) => {
   const { email, password } = req.body;
@@ -26,6 +40,11 @@ exports.login = async (req, res) => {
         expiresIn: "24h",
       });
 
+      const AllAudiosCount = await getItemCount(process.env.LABELS_TABLE);
+      const LabeledAudiosCount = await getItemCount(process.env.LABELED_ITEMS_TABLE);
+      const AvailableAudiosCount = AllAudiosCount - LabeledAudiosCount
+
+
       return res.json({
         success: true,
         message: "Admin login successful",
@@ -35,6 +54,8 @@ exports.login = async (req, res) => {
           name: "Admin",
           role: "admin",
         },
+        availableAudiosCount: AvailableAudiosCount 
+
       });
     }
 

@@ -321,3 +321,17 @@
     gap: 0.75rem;
   }
 }
+
+.audio-count-info {
+  margin-bottom: 20px;
+  padding: 10px 15px;
+  background-color: #f8f9fa;
+  border-left: 4px solid #007bff;
+  border-radius: 4px;
+}
+
+.count-text {
+  font-size: 16px;
+  font-weight: 600;
+  color: #495057;
+}
