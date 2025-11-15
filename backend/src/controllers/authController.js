@@ -1,6 +1,6 @@
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
-const { GetCommand, PutCommand} = require('@aws-sdk/lib-dynamodb');
+const { GetCommand, PutCommand,QueryCommand} = require('@aws-sdk/lib-dynamodb');
 const { DescribeTableCommand } = require('@aws-sdk/client-dynamodb');
 const {docClient} = require('../utils/dynamodb');
 
@@ -18,6 +18,28 @@ async function getItemCount(tableName) {
     return result.Table.ItemCount; 
   } catch (error) {
     console.error("Error getting item count:", error);
+    throw error;
+  }
+}
+
+async function getCountWithZeroLabelCount(tableName) {
+  try {
+    const result = await docClient.send(
+      new QueryCommand({
+        TableName: tableName,
+        IndexName: "label_count-index", // Replace with your actual GSI name
+        KeyConditionExpression: "label_count = :zero",
+        ExpressionAttributeValues: {
+          ":zero": 0
+        },
+        Select: "COUNT"
+      })
+    );
+    console.log("zeroLabeledCount is :", result.Count);
+
+    return result.Count || 0;
+  } catch (error) {
+    console.error("Error getting count with zero label_count:", error);
     throw error;
   }
 }
@@ -43,6 +65,7 @@ exports.login = async (req, res) => {
       const AllAudiosCount = await getItemCount(process.env.LABELS_TABLE);
       const LabeledAudiosCount = await getItemCount(process.env.LABELED_ITEMS_TABLE);
       const AvailableAudiosCount = AllAudiosCount - LabeledAudiosCount
+      const ZeroLabelCount= await getCountWithZeroLabelCount(process.env.LABELS_TABLE)
 
 
       return res.json({
@@ -54,8 +77,8 @@ exports.login = async (req, res) => {
           name: "Admin",
           role: "admin",
         },
-        availableAudiosCount: AvailableAudiosCount 
-
+        availableAudiosCount: AvailableAudiosCount,
+        ZeroLabelCount: ZeroLabelCount
       });
     }
 

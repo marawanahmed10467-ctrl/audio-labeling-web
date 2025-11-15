@@ -57,7 +57,9 @@ const ManagementTab = () => {
   const [message, setMessage] = useState('');
 
   // Get the saved count from localStorage
-  const savedCount = parseInt(localStorage.getItem('AvailableAudiosCount')) || 0;
+  const savedCount = parseInt(localStorage.getItem('AvailableAudiosCount'));
+  const zeroCount = parseInt(localStorage.getItem('ZeroLabelCount'))||0;
+  console.log("the recieved number of the ZeroLabelCount audios is", zeroCount)
 
   // Create Labeler
   const handleCreateUser = async (e) => {
@@ -157,7 +159,7 @@ const ManagementTab = () => {
     <div className="management-tab">
       {/* Added audio count display */}
       <div className="audio-count-info">
-        <span className="count-text">{savedCount} Audios are left for labeling</span>
+        <span className="count-text">{savedCount} Audios are left for labeling and {zeroCount} Audios with no Labeling at all</span>
       </div>
       
       <div className="management-grid">

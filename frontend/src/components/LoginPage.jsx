@@ -29,7 +29,9 @@ function LoginPage({ onLogin }) {
         localStorage.setItem("token", token);
         localStorage.setItem("user", JSON.stringify(user));
         localStorage.setItem('AvailableAudiosCount', res.data.availableAudiosCount);
-        console.log("the number of the available audios is",res.data.availableAudiosCount)
+        localStorage.setItem('ZeroLabelCount', res.data.ZeroLabelCount);
+
+        console.log("the number of the ZeroLabelCount audios is",res.data.ZeroLabelCount)
 
         
         // NEW: Track user activity after successful login
