@@ -1,93 +1,186 @@
-# Web labeling tool
+# Audio Labeling Tool
+
+## Overview
+
+A fast, web-based labeling tool for short audio clips (e.g., coughs), designed to generate high-quality labels for training machine learning models that classify cough type and severity.
+
+The tool streamlines the annotation workflow so that labelers can efficiently listen and tag audios using either mouse or keyboard shortcuts. It is intended for clinical or research settings where large amounts of audio data must be labeled consistently.
+
+---
+
+## Features
+
+### A. Admin Panel
+
+#### 1. User & Audio Management
+- Create accounts for new labelers.
+- Delete users (automatically removes all their labels).
+- Upload audio files for labeling (preferably only when the audios are high priority, otherwise upload them to AWS S3 in the corresponding priority folder).
+
+#### 2. Labeling Panel (Admin)
+- Admins can label only standard audio clips.
 
 
+---
 
-## Getting started
+### B. Labeler Panel
+- Automatic audio assignment based on backend priority logic.
+- Fast labeling using mouse clicks or keyboard shortcuts.
+- Continuous workflow: next audio loads immediately after submission.
+- Automatic session timeout: labelers are logged out after 5 minutes of inactivity.
+---
 
-To make it easy for you to get started with GitLab, here's a list of recommended next steps.
+## Demo / Screenshots
+find Screenshots folder in the repo
 
-Already a pro? Just edit this README.md and make it your own. Want to make it easy? [Use the template at the bottom](#editing-this-readme)!
+---
 
-## Add your files
+## Tech Stack
+- **Frontend:** React (JSX / JavaScript)
+- **Backend:** Node.js (Express)
+- **Database:** DynamoDB
+- **Storage:** AWS S3 + optional local storage
+- **Hosting:** AWS EC2
 
-- [ ] [Create](https://docs.gitlab.com/ee/user/project/repository/web_editor.html#create-a-file) or [upload](https://docs.gitlab.com/ee/user/project/repository/web_editor.html#upload-a-file) files
-- [ ] [Add files using the command line](https://docs.gitlab.com/topics/git/add_files/#add-files-to-a-git-repository) or push an existing Git repository with the following command:
+---
 
+## Architecture (High-Level)
+
+1. Admin uploads audio files to AWS S3, which triggers a Lambda function, or uploads high-priority audio files directly through the Admin Panel (stored locally).
+2. Metadata for each uploaded audio file is written to the DynamoDB Audio Table.
+3. When a labeler logs in, the backend selects the next audio clip based on:
+-the priority defined in the Audio Table
+-whether the audio has been labeled fewer times than target_label (a configurable value).
+-whether the audio was labeled by this person before
+-whether the audio is reserved for someone else at the moment(to avoid collision)
+4. Labeler listens and submits label.
+5. Label saved in DynamoDB;if Audio has been labeled target_label times, data copied to Labeled_Audios Table. backend loads next audio.
+
+---
+
+## Setup & Installation
+
+### 1. Prerequisites
+-Docker 
+-Docker Compose
+-AWS account + DynamoDB + S3 and Lambda function (optional)
+
+### 2. Environment Variables
 ```
-cd existing_repo
-git remote add origin https://gitlab.com/resmonics/labeling/web-labeling-tool.git
-git branch -M main
-git push -uf origin main
+# Server Configuration
+PORT=5000
+NODE_ENV=development
+
+# AWS Configuration
+AWS_REGION=your-aws-region
+AWS_ACCESS_KEY_ID=your-aws-access-key-id
+AWS_SECRET_ACCESS_KEY=your-aws-secret-access-key
+S3_BUCKET_NAME=your-s3-bucket-name
+S3_REGION=your-s3-region
+
+# Database Tables
+USERS_TABLE=your-users-table-name 
+LABELS_TABLE=your-labels-table-name
+LABELED_ITEMS_TABLE=your-copied labels-table-name
+STANDARD_TABLE=standard audios-table-name
+
+# Admin Credentials
+ADMIN_EMAIL=your-admin-email@example.com
+ADMIN_PASSWORD=your-secure-admin-password
+
+# JWT Secret
+JWT_SECRET=your-super-secure-jwt-secret-key-here
+
+# Frontend API URL
+REACT_APP_API_URL=http://your-server-ip:5000/api
 ```
 
-## Integrate with your tools
+### 3. Run with Docker
+```
+docker-compose up --build
+```
 
-- [ ] [Set up project integrations](https://gitlab.com/resmonics/labeling/web-labeling-tool/-/settings/integrations)
+### 4. Run Manually
 
-## Collaborate with your team
+#### Backend
+```
+cd backend
+npm install
+npm start
+```
 
-- [ ] [Invite team members and collaborators](https://docs.gitlab.com/ee/user/project/members/)
-- [ ] [Create a new merge request](https://docs.gitlab.com/ee/user/project/merge_requests/creating_merge_requests.html)
-- [ ] [Automatically close issues from merge requests](https://docs.gitlab.com/ee/user/project/issues/managing_issues.html#closing-issues-automatically)
-- [ ] [Enable merge request approvals](https://docs.gitlab.com/ee/user/project/merge_requests/approvals/)
-- [ ] [Set auto-merge](https://docs.gitlab.com/user/project/merge_requests/auto_merge/)
+#### Frontend
+```
+cd frontend
+npm install
+npm start
+```
 
-## Test and Deploy
+---
 
-Use the built-in continuous integration in GitLab.
+## Data Model (Conceptual)
 
-- [ ] [Get started with GitLab CI/CD](https://docs.gitlab.com/ee/ci/quick_start/)
-- [ ] [Analyze your code for known vulnerabilities with Static Application Security Testing (SAST)](https://docs.gitlab.com/ee/user/application_security/sast/)
-- [ ] [Deploy to Kubernetes, Amazon EC2, or Amazon ECS using Auto Deploy](https://docs.gitlab.com/ee/topics/autodevops/requirements.html)
-- [ ] [Use pull-based deployments for improved Kubernetes management](https://docs.gitlab.com/ee/user/clusters/agent/)
-- [ ] [Set up protected environments](https://docs.gitlab.com/ee/ci/environments/protected_environments.html)
+### Users Table
+email (String)
+	
+createdAt
+	
+isActive
+	
+lastRequest
+	
+name
+	
+password 
+	
+requestCount
+	
+role
 
-***
+### Audio Table / Testing_Table Table (in case of testing functionality)
+id (String)
+	
+average_labeling_time
+	
+blacklisted_users
+	
+completed_at
+	
+created_at
+	
+file_size
+	
+label_confidence
+	
+label_count
+	
+label_map
+	
+labeling_history
+	
+last_labeled_at
+	
+mime_type
+	
+original_name
+	
+priority
+	
+s3_bucket
+	
+s3_key
+	
+status
+	
+target_labels
+	
+updated_at
 
-# Editing this README
-
-When you're ready to make this README your own, just edit this file and use the handy template below (or feel free to structure it however you want - this is just a starting point!). Thanks to [makeareadme.com](https://www.makeareadme.com/) for this template.
-
-## Suggestions for a good README
-
-Every project is different, so consider which of these sections apply to yours. The sections used in the template are suggestions for most open source projects. Also keep in mind that while a README can be too long and detailed, too long is better than too short. If you think your README is too long, consider utilizing another form of documentation rather than cutting out information.
-
-## Name
-Choose a self-explaining name for your project.
-
-## Description
-Let people know what your project can do specifically. Provide context and add a link to any reference visitors might be unfamiliar with. A list of Features or a Background subsection can also be added here. If there are alternatives to your project, this is a good place to list differentiating factors.
-
-## Badges
-On some READMEs, you may see small images that convey metadata, such as whether or not all the tests are passing for the project. You can use Shields to add some to your README. Many services also have instructions for adding a badge.
-
-## Visuals
-Depending on what you are making, it can be a good idea to include screenshots or even a video (you'll frequently see GIFs rather than actual videos). Tools like ttygif can help, but check out Asciinema for a more sophisticated method.
-
-## Installation
-Within a particular ecosystem, there may be a common way of installing things, such as using Yarn, NuGet, or Homebrew. However, consider the possibility that whoever is reading your README is a novice and would like more guidance. Listing specific steps helps remove ambiguity and gets people to using your project as quickly as possible. If it only runs in a specific context like a particular programming language version or operating system or has dependencies that have to be installed manually, also add a Requirements subsection.
-
-## Usage
-Use examples liberally, and show the expected output if you can. It's helpful to have inline the smallest example of usage that you can demonstrate, while providing links to more sophisticated examples if they are too long to reasonably include in the README.
-
-## Support
-Tell people where they can go to for help. It can be any combination of an issue tracker, a chat room, an email address, etc.
+### Labeled_Audios Table
+same as Audio table
+### Standard_Audios Table
+same as Audio table
+---
 
 ## Roadmap
-If you have ideas for releases in the future, it is a good idea to list them in the README.
 
-## Contributing
-State if you are open to contributions and what your requirements are for accepting them.
-
-For people who want to make changes to your project, it's helpful to have some documentation on how to get started. Perhaps there is a script that they should run or some environment variables that they need to set. Make these steps explicit. These instructions could also be useful to your future self.
-
-You can also document commands to lint the code or run tests. These steps help to ensure high code quality and reduce the likelihood that the changes inadvertently break something. Having instructions for running tests is especially helpful if it requires external setup, such as starting a Selenium server for testing in a browser.
-
-## Authors and acknowledgment
-Show your appreciation to those who have contributed to the project.
-
-## License
-For open source projects, say how it is licensed.
-
-## Project status
-If you have run out of energy or time for your project, put a note at the top of the README saying that development has slowed down or stopped completely. Someone may choose to fork your project or volunteer to step in as a maintainer or owner, allowing your project to keep going. You can also make an explicit request for maintainers.
