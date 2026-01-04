@@ -122,7 +122,7 @@ async function copyToLabeledItems(audioItem,table_name) {
       status: "completed",
       priority: audioItem.priority,
       label_count: audioItem.label_count,
-      target_labels: 3,
+      target_labels: audioItem.target_labels,
       label_map: audioItem.label_map || [],
       label_confidence: labelConfidence,
       labeling_history: audioItem.labeling_history || [],

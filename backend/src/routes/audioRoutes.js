@@ -149,7 +149,7 @@ router.post('/upload-audio', upload.array('audio', 10000), async (req, res) => {
         mime_type: file.mimetype,
         priority: finalPriority,
         label_count: 0,
-        target_labels: 3,
+        target_labels: TARGET_LABELS,
         label_map: [],
         label_confidence: 0,
         labeling_history: [],
@@ -236,58 +236,15 @@ async function findCandidatesByPriority(userEmail, limit) {
   return null;
 }
 
-// async function getAvailableAudios(priority, userEmail, limit = 15) {
-//   console.log(`🔍 Getting ${priority} priority audios - USING SCAN ONLY (index not available)`);
-  
-//   try {
-//     const scanParams = {
-//       TableName: process.env.LABELS_TABLE,
-//       FilterExpression: 
-//         'priority = :priority AND label_count < :target AND ' +
-//         '(attribute_not_exists(reserved_until) OR reserved_until < :now) AND ' +
-//         'attribute_not_exists(blacklisted_users)',
-//       ExpressionAttributeValues: {
-//         ':priority': priority,
-//         ':target': TARGET_LABELS,
-//         ':now': Date.now()
-//       }
-//     };
-    
-//     const result = await docClient.send(new ScanCommand(scanParams));
-//     console.log(` After scanning, ${result.Items} found let me filer them`);
-    
-//     // Manual filtering for blacklisted users (since FilterExpression can't handle complex array checks easily)
-//     const filteredItems = result.Items.filter(item => {
-//       // Skip if user is blacklisted
-//       if (item.blacklisted_users && item.blacklisted_users.includes(userEmail)) {
-//         return false;
-//       }
-//       return true;
-//     });
-    
-//     // Manual sorting (descending by label_count)
-//     const sortedItems = filteredItems.sort((a, b) => {
-//       const countA = a.label_count || 0;
-//       const countB = b.label_count || 0;
-//       return countB - countA; // Descending (2 → 1 → 0)
-//     });
-    
-//     console.log(`✅ SCAN successful: Found ${filteredItems.length} ${priority} priority audios (after filtering)`);
-//     return sortedItems.slice(0, limit);
-    
-//   } catch (scanError) {
-//     console.error(`❌ SCAN failed for ${priority}:`, scanError.message);
-//     return [];
-//   }
-// }
+
 async function getAvailableAudios(priority, userEmail, limit) {
-  let query; // Declare query outside if/else blocks
+  let query; 
   
   if (userEmail == process.env.ADMIN_EMAIL) {
     console.log(`I am going to try Querying for the Admin`);
     query = {
     TableName: process.env.LABELS_TABLE,
-    IndexName: 'priority-index', // ← You need a GSI with priority as partition key
+    IndexName: 'priority-index', 
     KeyConditionExpression: 'priority = :priority',
     ExpressionAttributeValues: {
       ':priority': priority,
@@ -295,22 +252,36 @@ async function getAvailableAudios(priority, userEmail, limit) {
     };
   } else {
     console.log(`I am going to try Querying`);
-    query = { // Remove 'const', just assign to existing variable
-      TableName: process.env.LABELS_TABLE,
-      IndexName: 'priority-label_count-index',
-      KeyConditionExpression: 'priority = :priority AND label_count < :target',
-      FilterExpression: 
-        '(attribute_not_exists(reserved_until) OR reserved_until < :now) AND ' +
-        'NOT contains(blacklisted_users, :user)',
-      ExpressionAttributeValues: {
-        ':priority': priority,
-        ':target': TARGET_LABELS,
-        ':now': Date.now(),
-        ':user': userEmail
-      },
-      //Limit: limit,
-      ScanIndexForward: false // Get highest label_count first (2/3 labels)
-    };
+    query = {
+    TableName: process.env.LABELS_TABLE,
+    IndexName: 'priority-index',
+
+    
+    KeyConditionExpression: 'priority = :priority',
+
+    FilterExpression: `
+      (
+        (attribute_exists(remaining_labels) AND remaining_labels > :zero)
+        OR
+        (attribute_not_exists(remaining_labels) AND label_count < :target)
+      )
+      AND
+      (attribute_not_exists(reserved_until) OR reserved_until < :now)
+      AND
+      NOT contains(blacklisted_users, :user)
+    `,
+
+    ExpressionAttributeValues: {
+      ':priority': priority,
+      ':target': TARGET_LABELS,
+      ':zero': 0,
+      ':now': Date.now(),
+      ':user': userEmail
+    },
+
+    ScanIndexForward: false 
+  };
+
   }
 
   try {
@@ -334,7 +305,12 @@ async function reserveAudioForUser(audioId, userEmail) {
       `,
       ConditionExpression: `
         (attribute_not_exists(reserved_until) OR reserved_until < :now) AND
-        label_count < :target AND
+        (
+          (attribute_exists(remaining_labels) AND remaining_labels > :zero)
+          OR
+          (attribute_not_exists(remaining_labels) AND label_count < :target)
+        )
+        AND
         (attribute_not_exists(blacklisted_users) OR NOT contains(blacklisted_users, :user))
       `,
       ExpressionAttributeValues: {
@@ -342,6 +318,7 @@ async function reserveAudioForUser(audioId, userEmail) {
         ':until': Date.now() + RESERVATION_TIMEOUT,
         ':status': 'reserved',
         ':now': Date.now(),
+        ':zero': 0,
         ':target': TARGET_LABELS
         // REMOVED: empty_list and user_list
       },
@@ -384,17 +361,6 @@ router.get('/label-items', async (req, res) => {
   
   if (userEmail != process.env.ADMIN_EMAIL && userCounts == 20) {
 
-    // const params = {
-    //   TableName: process.env.LABELS_TABLE,
-    //   FilterExpression: 'priority = :priority', 
-    //   ExpressionAttributeValues: {
-    //     ':priority': 'standard'
-    //   },
-    //   ProjectionExpression: 'id, s3_key, original_name, priority, label_count' 
-    // };
-
-    // const result = await docClient.send(new ScanCommand(params)); 
-    // const items = result.Items;
     const params = {
       TableName: process.env.LABELS_TABLE,
       FilterExpression: 'priority = :priority',
@@ -496,14 +462,14 @@ router.get('/label-items', async (req, res) => {
           audio_url: audioUrl,
           priority: assignedAudio.priority,
           label_count: assignedAudio.label_count || 0,
-          target_labels: TARGET_LABELS,
+          target_labels: assignedAudio.target_labels,
           filename: assignedAudio.s3_key.split('/').pop() || 'audio',
           s3_key:assignedAudio.s3_key,
           reservation_id: `res_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`
         };
         
         console.log(`🎉 Assigned ${assignedAudio.priority} priority audio to ${userEmail}`);
-        console.log(`   Audio: ${assignedAudio.id}, Labels: ${assignedAudio.label_count || 0}/3`);
+        console.log(`   Audio: ${assignedAudio.id}, Labels: ${assignedAudio.label_count || 0}`);
         console.log(`   Audio: ${assignedAudio.original_name}`);
         console.log(`   Audio: ${assignedAudio.s3_key}`);
 
@@ -667,7 +633,24 @@ router.post('/labeled-items', async (req, res) => {
       }));
 
       updatedAudio = result.Attributes;
-      newLabelCount = updatedAudio.label_count || 1;
+      // label_count after increment
+      newLabelCount = Number(updatedAudio.label_count ?? 0);
+
+      // use per-row target_labels if exists, otherwise fallback
+      const targetLabels = Number(updatedAudio.target_labels ?? TARGET_LABELS);
+
+      // compute remaining_labels
+      const remainingLabels = Math.max(0, targetLabels - newLabelCount);
+
+      // persist remaining_labels
+      await docClient.send(new UpdateCommand({
+        TableName: process.env.LABELS_TABLE,
+        Key: { id: audioId },
+        UpdateExpression: "SET remaining_labels = :remaining",
+        ExpressionAttributeValues: {
+          ":remaining": remainingLabels
+        }
+      }));
 
       console.log(`✅ Label submitted for ${audioId} by ${userEmail}`);
       console.log(`   New label count: ${updatedAudio.label_count}/3`);
@@ -675,16 +658,18 @@ router.post('/labeled-items', async (req, res) => {
       // Calculate and update label confidence and average time
       await updateAudioMetrics(audioId, newLabelCount);
 
-      // Check if audio reached 3 labels and copy to labeled_items
-      if (newLabelCount >= TARGET_LABELS) {
+      // move only when remaining_labels becomes 0
+      if (remainingLabels === 0) {
+        // Important: ensure the copied item includes the latest remaining_labels value
+        updatedAudio.remaining_labels = remainingLabels;
         await copyToLabeledItems(updatedAudio, process.env.LABELED_ITEMS_TABLE);
       }
 
       return res.json({
         success: true,
-        new_label_count: updatedAudio.label_count,
-        labels_remaining: TARGET_LABELS - newLabelCount,
-        is_completed: newLabelCount >= TARGET_LABELS,
+        new_label_count: newLabelCount,
+        labels_remaining: remainingLabels,
+        is_completed: remainingLabels === 0,
       });
     }
 

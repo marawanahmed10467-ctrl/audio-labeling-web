@@ -5,7 +5,7 @@ const cors = require('cors');
 
 const authRoutesModule = require('./src/routes/authRoutes'); // Import module
 const audioRoutes = require('./src/routes/audioRoutes');
-
+const labelCountControl=require('./src/routes/labelCountControl');
 // const {initializeCleanup } = require('./utils/labelsHandlers'); 
 
 
@@ -46,7 +46,9 @@ const { router: authRoutes, initializeCleanup } = authRoutesModule;
 
 // Use only the routes you have
 app.use('/api/auth', authRoutes);
-app.use('/api/audio', audioRoutes); // This contains all admin functions
+app.use('/api/audio', audioRoutes); 
+app.use('/api/labelCount', labelCountControl); 
+
 
 app.get('/api/health', (req, res) => {
   res.json({ status: 'OK', message: 'Server is running' });

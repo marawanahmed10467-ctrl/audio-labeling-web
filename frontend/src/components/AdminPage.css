@@ -1,3 +1,5 @@
+/* (Your CSS exactly as you pasted it — unchanged) */
+
 .admin-panel {
   min-height: 100vh;
   background: #f8f9fa;
@@ -239,7 +241,6 @@
   to { opacity: 1; transform: translateY(0); }
 }
 
-/* Additional container styles for three-card layout */
 .three-card-grid {
   display: grid;
   grid-template-columns: 1fr 1fr 1fr;
@@ -264,7 +265,6 @@
   width: 100%;
 }
 
-/* Responsive design */
 @media (max-width: 1024px) {
   .three-card-grid {
     grid-template-columns: 1fr 1fr;
@@ -334,4 +334,246 @@
   font-size: 16px;
   font-weight: 600;
   color: #495057;
+}
+
+.advanced-filter-tab {
+  padding: 20px;
+}
+
+.section-label {
+  display: block;
+  font-weight: 600;
+  margin-bottom: 10px;
+  color: #333;
+}
+
+.filter-selection {
+  margin-bottom: 30px;
+}
+
+.filter-type-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 10px;
+  margin-top: 10px;
+}
+
+.filter-type-btn {
+  padding: 12px 20px;
+  border: 2px solid #ddd;
+  background: white;
+  border-radius: 8px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.3s ease;
+}
+
+.filter-type-btn:hover {
+  border-color: #4a90e2;
+  background: #f0f7ff;
+}
+
+.filter-type-btn.active {
+  border-color: #4a90e2;
+  background: #4a90e2;
+  color: white;
+}
+
+.filter-container {
+  background: white;
+  border: 1px solid #e0e0e0;
+  border-radius: 10px;
+  padding: 25px;
+  margin-bottom: 30px;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+}
+
+.filter-title {
+  margin-top: 0;
+  margin-bottom: 20px;
+  color: #333;
+  border-bottom: 2px solid #f0f0f0;
+  padding-bottom: 10px;
+}
+
+.filter-section {
+  padding: 20px 0;
+}
+
+.filter-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 20px;
+  margin-bottom: 20px;
+}
+
+.filter-group {
+  margin-bottom: 20px;
+}
+
+.filter-label {
+  display: block;
+  font-weight: 500;
+  margin-bottom: 8px;
+  color: #555;
+}
+
+.filter-select,
+.filter-input,
+.filter-textarea {
+  width: 100%;
+  padding: 10px 12px;
+  border: 1px solid #ddd;
+  border-radius: 6px;
+  font-size: 14px;
+  transition: border-color 0.3s ease;
+}
+
+.filter-select:focus,
+.filter-input:focus,
+.filter-textarea:focus {
+  outline: none;
+  border-color: #4a90e2;
+  box-shadow: 0 0 0 2px rgba(74, 144, 226, 0.2);
+}
+
+.filter-textarea {
+  resize: vertical;
+  min-height: 80px;
+  font-family: inherit;
+}
+
+.filter-hint {
+  font-size: 12px;
+  color: #666;
+  margin-top: 5px;
+  font-style: italic;
+}
+
+.filter-btn {
+  background: #4a90e2;
+  color: white;
+  border: none;
+  padding: 12px 30px;
+  border-radius: 6px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 0.3s ease;
+  font-size: 14px;
+}
+
+.filter-btn:hover:not(:disabled) {
+  background: #357ae8;
+}
+
+.filter-btn:disabled {
+  background: #ccc;
+  cursor: not-allowed;
+}
+
+.results-container {
+  margin-top: 30px;
+}
+
+.results-container h3 {
+  margin-bottom: 15px;
+  color: #333;
+}
+
+.results-table-container {
+  overflow-x: auto;
+  border: 1px solid #e0e0e0;
+  border-radius: 8px;
+  background: white;
+}
+
+.results-table {
+  width: 100%;
+  border-collapse: collapse;
+  min-width: 800px;
+}
+
+.results-table th {
+  background: #f8f9fa;
+  padding: 12px 15px;
+  text-align: left;
+  font-weight: 600;
+  color: #333;
+  border-bottom: 2px solid #e0e0e0;
+}
+
+.results-table td {
+  padding: 10px 15px;
+  border-bottom: 1px solid #eee;
+  vertical-align: top;
+}
+
+.results-table tr:hover {
+  background-color: #f8f9fa;
+}
+
+.results-table tr:last-child td {
+  border-bottom: none;
+}
+
+.message {
+  padding: 12px 20px;
+  border-radius: 6px;
+  margin: 15px 0;
+  font-weight: 500;
+}
+
+.message.success {
+  background-color: #d4edda;
+  color: #155724;
+  border: 1px solid #c3e6cb;
+}
+
+.message.error {
+  background-color: #f8d7da;
+  color: #721c24;
+  border: 1px solid #f5c6cb;
+}
+
+@media (max-width: 768px) {
+  .filter-type-grid {
+    grid-template-columns: 1fr;
+  }
+  
+  .filter-grid {
+    grid-template-columns: 1fr;
+  }
+  
+  .advanced-filter-tab {
+    padding: 10px;
+  }
+  
+  .filter-container {
+    padding: 15px;
+  }
+}
+
+
+.increment-note {
+  margin-top: 12px;
+  padding: 10px 12px;
+  background: #f8f9fa;
+  border-left: 4px solid #4a90e2;
+  border-radius: 6px;
+  color: #495057;
+  font-size: 13px;
+}
+
+.increment-summary {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px 20px;
+  font-size: 14px;
+  color: #333;
+}
+
+@media (max-width: 768px) {
+  .increment-summary {
+    grid-template-columns: 1fr;
+  }
 }
